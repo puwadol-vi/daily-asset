@@ -58,8 +58,7 @@ def _fmt_line(item: dict, ref: date) -> str:
 
 
 def build_message(groups: list, ref: date) -> str:
-    header = f'📊 Fund NAV — {ref.strftime("%b %-d, %Y")}'
-    lines  = [header, '']
+    lines  = []
     for group in groups:
         if not group['items']:
             continue
@@ -71,29 +70,21 @@ def build_message(groups: list, ref: date) -> str:
 
 # ── outputs ───────────────────────────────────────────────────────────────────
 
-def _split_chunks(message: str, limit: int = 1900) -> list[str]:
-    """Split message at blank lines to stay within Discord's char limit."""
-    chunks, current = [], []
-    current_len = 0
-    for line in message.split('\n'):
-        # Discord counts emoji as 2 chars (JS surrogate pairs)
-        line_len = sum(2 if ord(c) > 0xFFFF else 1 for c in line) + 1
-        if current_len + line_len > limit and current:
-            chunks.append('\n'.join(current).rstrip())
-            current, current_len = [], 0
-        current.append(line)
-        current_len += line_len
-    if current:
-        chunks.append('\n'.join(current).rstrip())
-    return chunks
 
-
-def post_discord(message: str) -> None:
+def post_discord(groups: list, ref: date) -> None:
+    error_items = [
+        item
+        for g in groups
+        for item in g['items']
+        if item.get('error')
+    ]
+    lines = [f'📅 Fund Status — {ref.strftime("%b %-d, %Y")} — {len(error_items)} error(s)']
+    for item in error_items:
+        lines.append(f'❌ {item["display"]}  {item["error"]}')
     url = os.environ['DISCORD_WEBHOOK_URL']
-    for chunk in _split_chunks(message):
-        resp = requests.post(url, json={'content': chunk})
-        if not resp.ok:
-            raise RuntimeError(f'Discord {resp.status_code}: {resp.text}')
+    resp = requests.post(url, json={'content': '\n'.join(lines)})
+    if not resp.ok:
+        raise RuntimeError(f'Discord {resp.status_code}: {resp.text}')
 
 
 def post_calendar(message: str, ref: date) -> None:
@@ -107,7 +98,7 @@ def post_calendar(message: str, ref: date) -> None:
     service = build('calendar', 'v3', credentials=creds)
 
     today = datetime.now(ZoneInfo('Asia/Bangkok')).date()
-    title = f'📊 Fund NAV — {ref.strftime("%b %-d")}'
+    title = f'*📊 Fund NAV — {ref.strftime("%b %-d")}'
     event = {
         'summary':     title,
         'description': message,
@@ -130,8 +121,9 @@ def main() -> None:
     groups  = fetch_all(config['groups'])
     message = build_message(groups, ref)
 
-    post_discord(message)
-    print(f'Discord: OK')
+    if os.environ.get('DISCORD_WEBHOOK_URL'):
+        post_discord(groups, ref)
+        print('Discord: OK')
 
     if os.environ.get('GOOGLE_SERVICE_ACCOUNT_FILE') and os.environ.get('GOOGLE_CALENDAR_ID'):
         result = post_calendar(message, ref)

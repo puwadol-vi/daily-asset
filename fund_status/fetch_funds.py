@@ -6,29 +6,11 @@ from zoneinfo import ZoneInfo
 
 ICT = ZoneInfo('Asia/Bangkok')
 
-FINNOMENA_LIST   = 'https://www.finnomena.com/fn3/api/fund/public/list'
-FINNOMENA_LATEST = 'https://www.finnomena.com/fn3/api/fund/v2/public/funds/{id}/latest'
-HEADERS = {
-    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36',
-    'Accept': 'application/json, text/plain, */*',
-    'Accept-Language': 'en-US,en;q=0.9,th;q=0.8',
-    'Accept-Encoding': 'gzip, deflate, br',
-    'Origin': 'https://www.finnomena.com',
-    'Referer': 'https://www.finnomena.com/',
-    'Connection': 'keep-alive',
-}
+FINNOMENA_LIST   = 'https://fund-calendar.pdevspaceth.workers.dev/fn3/api/fund/public/list'
+FINNOMENA_LATEST = 'https://fund-calendar.pdevspaceth.workers.dev/fn3/api/fund/v2/public/funds/{id}/latest'
+HEADERS = {'Accept': 'application/json'}
 
 _fund_map: dict[str, str] = {}   # short_code → fund_id
-_session: requests.Session | None = None
-
-
-def _get_session() -> requests.Session:
-    global _session
-    if _session is None:
-        _session = requests.Session()
-        _session.headers.update(HEADERS)
-        _session.get('https://www.finnomena.com/', timeout=10)
-    return _session
 
 
 def expected_date() -> date:
@@ -43,7 +25,7 @@ def _load_fund_map() -> None:
     global _fund_map
     if _fund_map:
         return
-    resp = _get_session().get(FINNOMENA_LIST, timeout=15)
+    resp = requests.get(FINNOMENA_LIST, headers=HEADERS, timeout=15)
     resp.raise_for_status()
     _fund_map = {f['short_code']: f['id'] for f in resp.json() if f.get('short_code')}
 
@@ -53,7 +35,7 @@ def _fetch_fund(code: str) -> dict:
     fund_id = _fund_map.get(code)
     if not fund_id:
         raise ValueError(f'not found in Finnomena: {code}')
-    resp = _get_session().get(FINNOMENA_LATEST.format(id=fund_id), timeout=10)
+    resp = requests.get(FINNOMENA_LATEST.format(id=fund_id), headers=HEADERS, timeout=10)
     resp.raise_for_status()
     d = resp.json().get('data', {})
     raw_date = d.get('date', '')

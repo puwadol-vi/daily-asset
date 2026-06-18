@@ -6,9 +6,11 @@ service_account.json
 fund_status/fund-calendar-56cb48fd723a.json
 __pycache__/
 
+cron.log
 *.pyc
 *.pyo
 venv/
 **/cache.json
 
 .DS_Store
+proxy/
