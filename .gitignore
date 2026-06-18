@@ -13,4 +13,3 @@ venv/
 **/cache.json
 
 .DS_Store
-proxy/
