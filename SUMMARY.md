@@ -1,0 +1,16 @@
+# Table of contents
+
+* [Daily Asset — Claude Code Guide](README.md)
+* [Pixel Chart Diary](docs/README.md)
+  * [Summary](docs/SUMMARY.md)
+* [full\_asset\_status](full_asset_status/README.md)
+  * [Pixel Art Chart — Image Plan](full_asset_status/full-asset-image.md)
+  * [Daily Asset Status — Post Plan](full_asset_status/full-asset-status.md)
+* [multi\_asset\_status](multi_asset_status/README.md)
+  * [Daily Multi Asset Status — Plan](multi_asset_status/multi-asset-status.md)
+* [strategy](strategy/README.md)
+  * [BTC Call Option DCA Snowball Plan](strategy/BTC_Call_Option_Snowball_Plan.md)
+  * [Bitcoin Options Income Strategy: High-Frequency Technical Filter](strategy/Bitcoin_Options_Income_Strategy.md)
+  * [Futures Snowball Leverage Strategy](strategy/Futures_Snowball_Leverage_Strategy.md)
+  * [Grid Trading + Conditional Option Hedge Strategy](strategy/Grid_Option_Hedge_Strategy.md)
+  * [Multi-Coin Allocation Plan](strategy/MultiCoin_Allocation_Plan.md)

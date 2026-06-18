@@ -1,0 +1,14 @@
+.env
+COMMAND.txt
+
+# Environment variables for fund_status.py
+service_account.json
+fund_status/fund-calendar-56cb48fd723a.json
+__pycache__/
+
+*.pyc
+*.pyo
+venv/
+**/cache.json
+
+.DS_Store

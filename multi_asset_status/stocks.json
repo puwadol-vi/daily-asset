@@ -1,0 +1,14 @@
+{
+  "stocks": [
+    { "ticker": "NVDA" },
+    { "ticker": "GOOG" },
+    { "ticker": "AAPL" },
+    { "ticker": "MSFT" },
+    { "ticker": "AMZN" },
+    { "ticker": "SPCX" },
+    { "ticker": "TSM" },
+    { "ticker": "AVGO" },
+    { "ticker": "TSLA" },
+    { "ticker": "META" }
+  ]
+}

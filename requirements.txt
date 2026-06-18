@@ -1,0 +1,12 @@
+anthropic
+ccxt
+pandas
+pandas_ta
+numpy
+requests
+python-dotenv
+pillow
+yfinance
+google-api-python-client
+google-auth-httplib2
+google-auth-oauthlib

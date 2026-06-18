@@ -1,0 +1,74 @@
+{
+  "groups": [
+    {
+      "name": "SCB",
+      "source": "sec",
+      "items": [
+        { "display": "SCBAXJ(E)", "code": "SCBAXJ(E)" },
+        { "display": "SCBBLOCE", "code": "SCBBLOC(E)" },
+        { "display": "SCBCEHE", "code": "SCBCEHE" },
+        { "display": "SCBCHAE", "code": "SCBCHAE" },
+        { "display": "SCBCLEAN(E)", "code": "SCBCLEAN(E)" },
+        { "display": "SCBCOMP", "code": "SCBCOMP" },
+        { "display": "SCBCTECHE", "code": "SCBCTECHE" },
+        { "display": "SCBENERGYE", "code": "SCBENERGYE" },
+        { "display": "SCBEV(E)", "code": "SCBEV(E)" },
+        { "display": "SCBGOLDE", "code": "SCBGOLDE" },
+        { "display": "SCBGOLDHE", "code": "SCBGOLDHE" },
+        { "display": "SCBKEQTGE", "code": "SCBKEQTGE" },
+        { "display": "SCBNK225E", "code": "SCBNK225E" },
+        { "display": "SCBPGF(E)", "code": "SCBPGF(E)" },
+        { "display": "SCBSEMI(E)", "code": "SCBSEMI(E)" },
+        { "display": "SCBVIETE", "code": "SCBVIET(E)" }
+      ]
+    },
+    {
+      "name": "K",
+      "source": "sec",
+      "items": [
+        { "display": "K-AGRI", "code": "K-AGRI" },
+        { "display": "K-ASIAX", "code": "K-ASIAX" },
+        { "display": "K-EUX", "code": "K-EUX" },
+        { "display": "K-GTECHRMF", "code": "K-GTECHRMF" },
+        { "display": "K-JPX-A(A)", "code": "K-JPX-A(A)" },
+        { "display": "K-OIL", "code": "K-OIL" },
+        { "display": "K-US500X-A(A)", "code": "K-US500X-A(A)" },
+        { "display": "K-USXNDQ", "code": "K-USXNDQ-A(A)" },
+        { "display": "K-WORLDX", "code": "K-WORLDX" },
+        { "display": "KGDRMF", "code": "K-GDRMF" }
+      ]
+    },
+    {
+      "name": "Bualuang",
+      "source": "sec",
+      "items": [{ "display": "BGOLD", "code": "BGOLD" }]
+    },
+    {
+      "name": "Gold",
+      "source": "yahoo",
+      "items": [{ "display": "Gold", "ticker": "GC=F" }]
+    },
+    {
+      "name": "Commodities",
+      "source": "yahoo",
+      "items": [
+        { "display": "Corn", "ticker": "ZC=F" },
+        { "display": "Oil WTI", "ticker": "CL=F" },
+        { "display": "Soybean", "ticker": "ZS=F" }
+      ]
+    },
+    {
+      "name": "Indices",
+      "source": "yahoo",
+      "items": [{ "display": "World index", "ticker": "ACWI" }]
+    },
+    {
+      "name": "FX",
+      "source": "yahoo",
+      "items": [
+        { "display": "Baht", "ticker": "THBUSD=X" },
+        { "display": "Dollar index", "ticker": "DX-Y.NYB" }
+      ]
+    }
+  ]
+}

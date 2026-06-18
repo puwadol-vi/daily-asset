@@ -1,0 +1,30 @@
+fix Strategy_Summary.md: number is not concept
+read Strategy_Summary.md first
+see my concept detail (and fill something that i missing)
+- Bitcoin Options Income Strategy
+daily(can skip) sell option Strategy (call or put) with good premium gain
+reduce risk using other indicator to avoid entry in wrong way (ok to entry in sideway or correct way)
+- Bitcoin Call Snowball Strategy
+focus on uptrend 2026Oct-2029Oct
+buy call option to get leverage with no liquidate price (get liquidate time instead)
+start trend or bad spot => buy long period to reduce risk
+on trend => buy short period to gain more profit
+exit before 6 week, Exit before decay becomes expensive. (if price down and make option have no price, maybe hold for chance
+to have price go up)
+- Multi-Coin Allocation Strategy
+try daily buy 2 best coin in each daily
+with ratio allocation
+- Bitcoin Futures Snowball Strategy
+focus on uptrend 2026Oct-2029Oct
+
+- core concept
+- market environment to entry
+- core logic, tool, indicator
+- Capital flow
+- alert, signal that needed
+- result data that usable
+- tracking table template
+
+
+
+rm -rf ~/.claude/cache ~/.claude/paste-cache ~/.claude/telemetry
