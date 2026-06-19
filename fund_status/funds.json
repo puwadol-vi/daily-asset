@@ -5,37 +5,45 @@
       "source": "sec",
       "items": [
         { "display": "SCBAXJ(E)", "code": "SCBAXJ(E)" },
-        { "display": "SCBBLOCE", "code": "SCBBLOC(E)" },
+        { "display": "SCBBLOC(E)", "code": "SCBBLOC(E)", "master": "BCHS.L" },
         { "display": "SCBCEHE", "code": "SCBCEHE" },
         { "display": "SCBCHAE", "code": "SCBCHAE" },
-        { "display": "SCBCLEAN(E)", "code": "SCBCLEAN(E)" },
-        { "display": "SCBCOMP", "code": "SCBCOMP" },
-        { "display": "SCBCTECHE", "code": "SCBCTECHE" },
+        { "display": "SCBCLEAN(E)", "code": "SCBCLEAN(E)", "master": "ICLN" },
+        { "display": "SCBCOMP", "code": "SCBCOMP", "master": "PCRIX" },
+        { "display": "SCBCTECHE", "code": "SCBCTECHE", "master": "CQQQ" },
         { "display": "SCBENERGYE", "code": "SCBENERGYE" },
-        { "display": "SCBEV(E)", "code": "SCBEV(E)" },
+        { "display": "SCBEV(E)", "code": "SCBEV(E)", "master": "KARS" },
         { "display": "SCBGOLDE", "code": "SCBGOLDE" },
         { "display": "SCBGOLDHE", "code": "SCBGOLDHE" },
-        { "display": "SCBKEQTGE", "code": "SCBKEQTGE" },
+        { "display": "SCBKEQTGE", "code": "SCBKEQTGE", "master": "EWY" },
         { "display": "SCBNK225E", "code": "SCBNK225E" },
-        { "display": "SCBPGF(E)", "code": "SCBPGF(E)" },
-        { "display": "SCBSEMI(E)", "code": "SCBSEMI(E)" },
-        { "display": "SCBVIETE", "code": "SCBVIET(E)" }
+        { "display": "SCBPGF(E)", "code": "SCBPGF(E)", "master": "0P0001DHKS.F" },
+        { "display": "SCBSEMI(E)", "code": "SCBSEMI(E)", "master": "SMH" },
+        { "display": "SCBVIET(E)", "code": "SCBVIET(E)" }
       ]
     },
     {
       "name": "K",
       "source": "sec",
       "items": [
-        { "display": "K-AGRI", "code": "K-AGRI" },
-        { "display": "K-ASIAX", "code": "K-ASIAX" },
-        { "display": "K-EUX", "code": "K-EUX" },
-        { "display": "K-GTECHRMF", "code": "K-GTECHRMF" },
+        { "display": "K-AGRI", "code": "K-AGRI", "master": "DBA" },
+        { "display": "K-ASIAX", "code": "K-ASIAX", "master": "AAXJ" },
+        { "display": "K-EUX", "code": "K-EUX", "master": "EXW1.DE" },
+        { "display": "K-GTECHRMF", "code": "K-GTECHRMF", "master": "0P0000NCAA" },
         { "display": "K-JPX-A(A)", "code": "K-JPX-A(A)" },
-        { "display": "K-OIL", "code": "K-OIL" },
-        { "display": "K-US500X-A(A)", "code": "K-US500X-A(A)" },
-        { "display": "K-USXNDQ", "code": "K-USXNDQ-A(A)" },
-        { "display": "K-WORLDX", "code": "K-WORLDX" },
-        { "display": "KGDRMF", "code": "K-GDRMF" }
+        { "display": "K-OIL", "code": "K-OIL", "master": "DBO" },
+        {
+          "display": "K-US500X-A(A)",
+          "code": "K-US500X-A(A)",
+          "master": "IVV"
+        },
+        {
+          "display": "K-USXNDQ-A(A)",
+          "code": "K-USXNDQ-A(A)",
+          "master": "QQQM"
+        },
+        { "display": "K-WORLDX", "code": "K-WORLDX", "master": "ACWI" },
+        { "display": "K-GDRMF", "code": "K-GDRMF" }
       ]
     },
     {

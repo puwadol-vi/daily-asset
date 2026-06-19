@@ -2,8 +2,7 @@ import json
 import os
 import sys
 import requests
-from datetime import date, datetime
-from zoneinfo import ZoneInfo
+from datetime import date
 from pathlib import Path
 from dotenv import load_dotenv
 
@@ -47,14 +46,26 @@ def _stale(item_date: date | None, ref: date) -> str:
 
 
 def _fmt_line(item: dict, ref: date) -> str:
-    emoji = _emoji(item['chg_pct'])
-    chg   = _fmt_chg(item['chg_pct']).rjust(8)
-    price = f'  {_fmt_nav(item["nav"])}' if item['nav'] is not None else ''
-    name  = f'  {item["display"]}'
-    stale = _stale(item.get('date'), ref)
     if item.get('error'):
-        return f'❌ {item["display"]}  {item["error"][:40]}'
-    return f'{emoji} {chg}{price}{name}{stale}'
+        return f'❌ {item["display"]}  {item["error"][:10]}'
+
+    is_stale = item.get('date') and item['date'] < ref
+    if is_stale and item.get('master_code'):
+        chg_pct     = item.get('master_chg_pct')
+        nav         = item.get('master_nav')
+        master_date = item.get('master_date')
+        stale_tag   = _stale(master_date, ref)
+        suffix      = f'  ({item["master_code"]}){stale_tag}'
+    else:
+        chg_pct = item['chg_pct']
+        nav     = item['nav']
+        suffix  = _stale(item.get('date'), ref)
+
+
+    emoji = _emoji(chg_pct)
+    chg   = _fmt_chg(chg_pct).rjust(8)
+    name  = f'  {item["display"]}'
+    return f'{emoji} {chg}{name}{suffix}'
 
 
 def build_message(groups: list, ref: date) -> str:
@@ -97,13 +108,12 @@ def post_calendar(message: str, ref: date) -> None:
     )
     service = build('calendar', 'v3', credentials=creds)
 
-    today = datetime.now(ZoneInfo('Asia/Bangkok')).date()
     title = f'*📊 Fund NAV — {ref.strftime("%b %-d")}'
     event = {
         'summary':     title,
         'description': message,
-        'start':       {'date': today.isoformat()},
-        'end':         {'date': today.isoformat()},
+        'start':       {'date': ref.isoformat()},
+        'end':         {'date': ref.isoformat()},
     }
     result = service.events().insert(
         calendarId=os.environ['GOOGLE_CALENDAR_ID'],
@@ -118,7 +128,7 @@ def main() -> None:
     config = json.loads((DIR / 'funds.json').read_text())
     ref    = expected_date()
 
-    groups  = fetch_all(config['groups'])
+    groups  = fetch_all(config['groups'], ref)
     message = build_message(groups, ref)
 
     if os.environ.get('DISCORD_WEBHOOK_URL'):

@@ -47,23 +47,30 @@ def _fetch_fund(code: str) -> dict:
 
 
 def _fetch_yahoo(ticker: str) -> dict:
-    h = yf.Ticker(ticker).history(period='5d', interval='1d')
+    t = yf.Ticker(ticker)
+    h = t.history(period='5d', interval='1d')
     if isinstance(h.columns, pandas.MultiIndex):
         h.columns = h.columns.get_level_values(0)
     h = h[h['Close'].notna()]
     if len(h) < 2:
         return {'nav': None, 'chg_pct': None, 'date': None}
-    price   = float(h['Close'].iloc[-1])
-    prev    = float(h['Close'].iloc[-2])
+    price = float(h['Close'].iloc[-1])
+    prev  = float(h['Close'].iloc[-2])
+    try:
+        if t.fast_info.currency == 'GBp':  # pence → pounds
+            price /= 100
+            prev  /= 100
+    except Exception:
+        pass
     chg_pct = (price / prev - 1) * 100
     return {
-        'nav':     round(price, 2),
+        'nav':     round(price, 4),
         'chg_pct': round(chg_pct, 2),
         'date':    h.index[-1].date(),
     }
 
 
-def _fetch_item(item: dict, group_source: str) -> dict:
+def _fetch_item(item: dict, group_source: str, ref: date) -> dict:
     src     = item.get('source') or group_source
     display = item['display']
     if src == 'manual':
@@ -73,17 +80,31 @@ def _fetch_item(item: dict, group_source: str) -> dict:
             result = _fetch_fund(item['code'])
         else:
             result = _fetch_yahoo(item['ticker'])
-        return {'display': display, **result, 'error': None}
+        out = {'display': display, **result, 'error': None}
     except Exception as e:
         return {'display': display, 'nav': None, 'chg_pct': None, 'date': None, 'error': str(e)}
 
+    master_code = item.get('master')
+    if master_code and out.get('date') and out['date'] < ref:
+        try:
+            m = _fetch_yahoo(master_code)
+            if m.get('date') and m['date'] > out['date']:  # master is fresher than feeder
+                out['master_nav']     = m['nav']
+                out['master_chg_pct'] = m['chg_pct']
+                out['master_code']    = master_code
+                out['master_date']    = m['date']
+        except Exception:
+            pass
 
-def fetch_all(groups: list) -> list:
+    return out
+
+
+def fetch_all(groups: list, ref: date) -> list:
     """Returns [{name, items: [{display, nav, chg_pct, date, error}]}]."""
     return [
         {
             'name':  g['name'],
-            'items': [_fetch_item(item, g['source']) for item in g['items']],
+            'items': [_fetch_item(item, g['source'], ref) for item in g['items']],
         }
         for g in groups
     ]
