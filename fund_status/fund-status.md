@@ -1,158 +1,149 @@
-# Fund NAV Status — Plan
+# Fund NAV Status
 
-Daily Thai mutual fund NAV + key market indicator tracker. Runs at **06:00 ICT**, posts to Discord and Google Calendar.
+Daily Thai mutual fund NAV + key market indicator tracker. Posts to Discord and Google Calendar.
 
 ---
 
 ## 1. Overview
 
-| Item        | Detail                                                           |
-| ----------- | ---------------------------------------------------------------- |
-| Schedule    | 06:00 ICT daily (`0 23 * * *` UTC = 06:00 next day ICT)          |
-| Data: funds | SEC Thailand API — `api.sec.or.th`                               |
-| Data: mkt   | Yahoo Finance — Gold, Oil, Corn, Soybean, DXY, World index, Baht |
-| Data: bonds | Manual / FRED API — ML bonds, yield curve                        |
-| Output 1    | Discord `DISCORD_WEBHOOK_URL` — log                              |
-| Output 2    | Google Calendar all-day event — display                          |
+| Item     | Detail |
+|----------|--------|
+| Schedule | Cron on server |
+| Ref date | Most recent completed business day in ICT (yesterday, skipping weekends) |
+| Output 1 | Discord `DISCORD_WEBHOOK_URL` — error summary only |
+| Output 2 | Google Calendar all-day event on **ref date** — full NAV message |
 
 ---
 
-## 2. Groups
+## 2. Groups & Sources
 
-Grouped by issuer / data source, sorted A→Z within each group.
-
-| #   | Group         | Source                 | Items (count)                               |
-| --- | ------------- | ---------------------- | ------------------------------------------- |
-| 1   | SCB           | SEC Thailand API       | 16 funds                                    |
-| 2   | K             | SEC Thailand API       | 10 funds                                    |
-| 3   | Bualuang      | SEC Thailand API       | BGOLD                                       |
-| 4   | Gold          | Yahoo Finance          | Gold (GC=F)                                 |
-| 5   | Commodities   | Yahoo Finance + manual | Oil WTI, Corn, Soybean, Bloomberg commodity |
-| 6   | Indices       | Yahoo Finance          | World index (^ACWI)                         |
-| 7   | FX            | Yahoo Finance          | Baht, Dollar index                          |
-| 8   | Bonds & Rates | Manual / FRED          | ML bonds, Intraday yield curve              |
+| Group | Source | Items |
+|-------|--------|-------|
+| SCB | Finnomena API | 16 funds |
+| K | Finnomena API | 10 funds |
+| Bualuang | Finnomena API | BGOLD |
+| Gold | Yahoo Finance | Gold (GC=F) |
+| Commodities | Yahoo Finance | Corn, Oil WTI, Soybean |
+| Indices | Yahoo Finance | World index (ACWI) |
+| FX | Yahoo Finance | Baht (THBUSD=X), Dollar index (DX-Y.NYB) |
 
 ---
 
-## 3. Display Format
+## 3. Data Sources
+
+| Source | Used for | How |
+|--------|----------|-----|
+| Finnomena API (proxied via Cloudflare Worker) | SCB, K, Bualuang funds | `GET /fn3/api/fund/v2/public/funds/{id}/latest` — fields: `value` (NAV), `d_change` (chg%), `date` |
+| Yahoo Finance (`yfinance`) | Gold, Commodities, Indices, FX, **master funds** | `Ticker.history(period='5d')` — computes chg% from last 2 closes. GBp currency auto-divided by 100. |
+
+---
+
+## 4. Stale Data & Master Fund Logic
+
+When a fund's data date is older than ref date, it is **stale**.
+
+If the item has a `"master"` ticker in `funds.json`:
+- Fetch master via yfinance
+- If master date > feeder date → use master's NAV/chg%, show master ticker label
+- If master is also stale (but fresher than feeder) → use master, show both label and master's date tag
+- If master is not fresher than feeder → ignore master, show feeder's own stale data
+
+---
+
+## 5. Display Format
 
 ```
-SCBGOLDE     🟢 +0.12%  3434.67
-K-OIL        🔴 -4.10%  3554.55
-Gold         🟢 +0.50%  3234.50
-Baht         🔴 -0.20%    33.45
+[Group]
+🟢   +0.94%  SCBAXJ(E)
+🟢   +0.53%  SCBBLOC(E)  (BCHS.L)
+🔴   -0.96%  SCBCLEAN(E)  (ICLN) #Jun 17
+🔴   -0.78%  SCBPGF(E) #Jun 16
+❌ SCBAXJ(E)  HTTPSConn...
 ```
 
 Rules:
+- `🟢` positive · `🔴` negative · `⚪` zero/N/A · `❌` fetch error
+- Change % right-aligned to 8 chars, no NAV shown
+- Stale feeder (no master): `#Mon D` tag appended
+- Fresh master used: `  (TICKER)` appended, no date tag
+- Stale master used: `  (TICKER) #Mon D` appended
+- Error: shows first 10 chars of error message
 
-- Display name left-padded to 14 chars
-- `🟢` positive · `🔴` negative · `⚪` zero or N/A
-- `+X.XX%` / `-X.XX%` / `N/A` — right-aligned 8 chars
-- NAV / price appended after two spaces
-- If the item's data date ≠ the header date → append `#Mon DD` (e.g. `#Jun 14`) to flag stale data
-- Groups separated by blank line + `[Group Name]` header
-
----
-
-## 4. Output
+### Calendar event
+- **Title:** `*📊 Fund NAV — Jun 18`
+- **Date:** ref date (not today)
+- **Description:** full message text
 
 ### Discord message
-
-```
-📊 Fund NAV — Jun 16, 2026
-
-[Gold]
-BGOLD          🟢 +0.30%  15.23
-Gold           🟢 +0.50%  3234.50
-KGDRMF         ⚪   N/A
-SCBGOLDE       🟢 +0.12%  3434.67
-SCBGOLDHE      🟢 +0.27%  2891.40 #Jun 14
-
-[Energy]
-K-OIL          🔴 -4.10%  3554.55
-Oil WTI        🔴 -1.20%    73.40
-SCBENERGYE     🔴 -0.02%  12345.67
-...
-```
-
-### Google Calendar event
-
-- **Title:** `📊 Fund NAV — Jun 16`
-- **Type:** all-day event
-- **Description:** same text as Discord message
-
----
-
-## 5. Data Sources
-
-| Source           | Groups                         | How                                                                             |
-| ---------------- | ------------------------------ | ------------------------------------------------------------------------------- |
-| SEC Thailand API | SCB, K, Bualuang               | `GET api.sec.or.th/FundFactsheet/fund/v1/info/nav/latest?proj_abbr_name=<code>` |
-| Yahoo Finance    | Gold, Commodities, Indices, FX | `yfinance` · `ticker` field in JSON                                             |
-| Manual / FRED    | Bonds & Rates                  | No fetch — display `⚪ N/A` as placeholder                                      |
-
-SEC response fields used: `nav`, `nav_date`, `nav_chg_pct`
-
-> If a fund returns no data (holiday / not yet published) → show `⚪ N/A`.
+- Error summary only: `📅 Fund Status — Jun 18, 2026 — N error(s)` + list of errored funds
 
 ---
 
 ## 6. funds.json Structure
 
-Top-level: `groups[]` — each group has `name`, `source` (`sec` / `yahoo` / `manual`), and `items[]`.
+```json
+{
+  "groups": [
+    {
+      "name": "SCB",
+      "source": "sec",
+      "items": [
+        { "display": "SCBAXJ(E)", "code": "SCBAXJ(E)" },
+        { "display": "SCBBLOC(E)", "code": "SCBBLOC(E)", "master": "BCHS.L" }
+      ]
+    },
+    {
+      "name": "Gold",
+      "source": "yahoo",
+      "items": [
+        { "display": "Gold", "ticker": "GC=F" }
+      ]
+    }
+  ]
+}
+```
 
-Per item:
-| Field | Present when | Meaning |
-|-------|-------------|---------|
+| Field | When | Meaning |
+|-------|------|---------|
 | `display` | always | Label shown in output |
-| `code` | `source: sec` | SEC `proj_abbr_name` (parentheses stripped) |
+| `code` | `source: sec` | Finnomena `short_code` |
 | `ticker` | `source: yahoo` | Yahoo Finance symbol |
-| `source: "manual"` | item-level override | Skip fetch, show `⚪ N/A` |
+| `master` | optional | Yahoo ticker for master/underlying fund; used when feeder is stale |
 
 ---
 
-## 7. File Structure
+## 7. Environment Variables
+
+```
+DISCORD_WEBHOOK_URL=
+GOOGLE_SERVICE_ACCOUNT_FILE=fund-calendar-xxxx.json
+GOOGLE_CALENDAR_ID=
+```
+
+Google Calendar uses **service account** auth (not OAuth token).
+
+---
+
+## 8. File Structure
 
 ```
 fund_status/
-  fund-status.md       ← this file
-  funds.json           ← all items, grouped by market
-  fetch_funds.py       ← fetch NAV (SEC) + market data (yfinance)
-  run_fund_status.py   ← main: fetch → format → Discord + Calendar
+  fund-status.md         ← this file
+  funds.json             ← groups + items config
+  fetch_funds.py         ← Finnomena + yfinance fetch, master fund logic
+  run_fund_status.py     ← format + Discord + Calendar output
+  fund-calendar-*.json   ← Google service account key
 ```
 
 ---
 
-## 8. Environment Variables
-
-Add to `.env`:
-
-```
-GOOGLE_CALENDAR_ID=primary
-GOOGLE_TOKEN_FILE=token.json
-GOOGLE_CREDENTIALS_FILE=credentials.json
-```
-
-> `DISCORD_WEBHOOK_URL` already in `.env`.
-
----
-
-## 9. Cron Entry
-
-```bash
-# 06:00 ICT = 23:00 UTC (previous day)
-0 23 * * * cd /home/ubuntu/daily-asset && /home/ubuntu/daily-asset/venv/bin/python3 fund_status/run_fund_status.py >> /home/ubuntu/daily-asset/cron.log 2>&1
-```
-
----
-
-## 10. Dependencies
+## 9. Dependencies
 
 ```
 requests
 yfinance
+pandas
 python-dotenv
 google-api-python-client
-google-auth-httplib2
-google-auth-oauthlib
+google-auth
 ```
