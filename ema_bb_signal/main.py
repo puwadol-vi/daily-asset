@@ -29,7 +29,7 @@ SETUP_JSON = Path(__file__).parent / 'setup.json'
 def load_config() -> list:
     return json.loads(SETUP_JSON.read_text())
 
-WEBHOOK = os.getenv('DISCORD_WEBHOOK_URL', '')
+WEBHOOK = os.getenv('SIGNAL_WEBHOOK_URL', '')
 
 
 # ── indicators ────────────────────────────────────────────────────────────────
@@ -132,7 +132,7 @@ OPS = {'==': lambda a, b: a == b, '!=': lambda a, b: a != b,
 
 def send_discord(msg: str):
     if not WEBHOOK:
-        print('[discord] No webhook configured (DISCORD_WEBHOOK_URL)')
+        print('[discord] No webhook configured (SIGNAL_WEBHOOK_URL)')
         return
     try:
         r = requests.post(WEBHOOK, json={'content': msg}, timeout=10)
