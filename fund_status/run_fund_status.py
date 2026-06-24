@@ -2,7 +2,7 @@ import json
 import os
 import sys
 import requests
-from datetime import date
+from datetime import date, timedelta
 from pathlib import Path
 from dotenv import load_dotenv
 
@@ -98,6 +98,20 @@ def post_discord(groups: list, ref: date) -> None:
         raise RuntimeError(f'Discord {resp.status_code}: {resp.text}')
 
 
+def is_holiday(groups: list, ref: date) -> bool:
+    """
+    Assume ref was a public holiday if ALL fetched items with dates
+    are older than ref — no external holiday API needed.
+    """
+    dated = [
+        item for g in groups for item in g['items']
+        if item.get('date') and not item.get('error')
+    ]
+    if not dated:
+        return False
+    return all(item['date'] < ref for item in dated)
+
+
 def post_calendar(message: str, ref: date) -> None:
     from google.oauth2 import service_account
     from googleapiclient.discovery import build
@@ -107,18 +121,28 @@ def post_calendar(message: str, ref: date) -> None:
         scopes=SCOPES,
     )
     service = build('calendar', 'v3', credentials=creds)
+    cal_id = os.environ['GOOGLE_CALENDAR_ID']
+    title  = f'*📊 Fund NAV — {ref.strftime("%b %-d")}'
 
-    title = f'*📊 Fund NAV — {ref.strftime("%b %-d")}'
+    # Duplicate guard — skip if event already exists for this date
+    existing = service.events().list(
+        calendarId=cal_id,
+        timeMin=f'{ref.isoformat()}T00:00:00Z',
+        timeMax=f'{(ref + timedelta(days=1)).isoformat()}T00:00:00Z',
+        singleEvents=True,
+    ).execute()
+    for ev in existing.get('items', []):
+        if ev.get('summary') == title:
+            print(f'Calendar: event already exists for {ref} — skip')
+            return None
+
     event = {
         'summary':     title,
         'description': message,
         'start':       {'date': ref.isoformat()},
         'end':         {'date': ref.isoformat()},
     }
-    result = service.events().insert(
-        calendarId=os.environ['GOOGLE_CALENDAR_ID'],
-        body=event,
-    ).execute()
+    result = service.events().insert(calendarId=cal_id, body=event).execute()
     return result
 
 
@@ -131,16 +155,26 @@ def main() -> None:
     groups  = fetch_all(config['groups'], ref)
     message = build_message(groups, ref)
 
-    if os.environ.get('DISCORD_WEBHOOK_URL'):
-        post_discord(groups, ref)
-        print('Discord: OK')
+    if is_holiday(groups, ref):
+        print(f'Holiday detected on {ref} (all data stale) — skip')
+        return
 
+    # Discord — failure does NOT block calendar
+    if os.environ.get('DISCORD_WEBHOOK_URL'):
+        try:
+            post_discord(groups, ref)
+            print('Discord: OK')
+        except Exception as e:
+            print(f'Discord: ERROR — {e}')
+
+    # Calendar
     if os.environ.get('GOOGLE_SERVICE_ACCOUNT_FILE') and os.environ.get('GOOGLE_CALENDAR_ID'):
-        result = post_calendar(message, ref)
-        print(f'Calendar: OK')
-        print(f'  id:     {result.get("id")}')
-        print(f'  status: {result.get("status")}')
-        print(f'  link:   {result.get("htmlLink")}')
+        try:
+            result = post_calendar(message, ref)
+            if result:
+                print(f'Calendar: OK  id={result.get("id")}')
+        except Exception as e:
+            print(f'Calendar: ERROR — {e}')
     else:
         print('Calendar: skipped (GOOGLE_SERVICE_ACCOUNT_FILE / GOOGLE_CALENDAR_ID not set)')
 

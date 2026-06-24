@@ -1,0 +1,68 @@
+[
+  {
+    "name": "EMA BB Signal",
+    "leverage": 100,
+    "percent_risk": 0.03,
+    "fee_rate": 0.0005,
+    "slippage": 0.0003,
+    "setups": [
+      {
+        "name": "long_ema_vol",
+        "side": "LONG",
+        "key": "ema_200_ratio",
+        "conditions": [
+          ["ema_200_ratio", ">", 1],
+          ["vol_ratio", ">", 2],
+          ["bb_ratio", ">", 1]
+        ],
+        "sl_atr": 2.0,
+        "rr_target": 2.0
+      },
+      {
+        "name": "short_ema_vol",
+        "side": "SHORT",
+        "key": "ema_200_ratio",
+        "conditions": [
+          ["ema_200_ratio", "<", 1],
+          ["vol_ratio", ">", 2],
+          ["bb_ratio", "<", -1]
+        ],
+        "sl_atr": 2.0,
+        "rr_target": 2.0
+      }
+    ]
+  },
+  {
+    "name": "EMA BB Signal (Adj)",
+    "leverage": 100,
+    "percent_risk": 0.03,
+    "fee_rate": 0.0005,
+    "slippage": 0.0003,
+    "setups": [
+      {
+        "name": "long_ema_vol",
+        "side": "LONG",
+        "key": "ema_200_ratio",
+        "conditions": [
+          ["ema_200_ratio", ">", 1],
+          ["vol_ratio", ">", 1.1],
+          ["bb_ratio", ">", 1]
+        ],
+        "sl_atr": 2.0,
+        "rr_target": 3.0
+      },
+      {
+        "name": "short_ema_vol",
+        "side": "SHORT",
+        "key": "ema_200_ratio",
+        "conditions": [
+          ["ema_200_ratio", "<", 1],
+          ["vol_ratio", ">", 2],
+          ["bb_ratio", "<", -1]
+        ],
+        "sl_atr": 2.0,
+        "rr_target": 2.0
+      }
+    ]
+  }
+]

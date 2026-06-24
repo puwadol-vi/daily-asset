@@ -2,6 +2,7 @@ anthropic
 ccxt
 pandas
 pandas_ta
+ta
 numpy
 requests
 python-dotenv

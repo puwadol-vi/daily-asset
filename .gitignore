@@ -4,6 +4,7 @@ COMMAND.txt
 # Environment variables for fund_status.py
 service_account.json
 fund_status/fund-calendar-56cb48fd723a.json
+ema_bb_signal/runtime/btc_calc.csv
 __pycache__/
 
 cron.log

@@ -101,10 +101,15 @@ def _fetch_item(item: dict, group_source: str, ref: date) -> dict:
 
 def fetch_all(groups: list, ref: date) -> list:
     """Returns [{name, items: [{display, nav, chg_pct, date, error}]}]."""
-    return [
-        {
-            'name':  g['name'],
-            'items': [_fetch_item(item, g['source'], ref) for item in g['items']],
-        }
-        for g in groups
-    ]
+    result = []
+    for g in groups:
+        try:
+            items = [_fetch_item(item, g['source'], ref) for item in g['items']]
+        except Exception as e:
+            items = [
+                {'display': item['display'], 'nav': None, 'chg_pct': None,
+                 'date': None, 'error': str(e)}
+                for item in g['items']
+            ]
+        result.append({'name': g['name'], 'items': items})
+    return result
