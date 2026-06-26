@@ -1,4 +1,5 @@
 import json
+import os
 import numpy as np
 import pandas as pd
 import pandas_ta as ta
@@ -53,6 +54,43 @@ def _fear_greed() -> tuple[int, str]:
     r.raise_for_status()
     d = r.json()['data'][0]
     return int(d['value']), d['value_classification']
+
+
+def _btc_monitor(token: str | None) -> dict:
+    """STH/LTH realized prices, cohort MVRV, SOPR, supply profit from btc.kaetkung.uk."""
+    _empty = {
+        'realized_price_sth':   None,
+        'realized_price_lth':   None,
+        'mvrv_sth':             None,
+        'mvrv_lth':             None,
+        'sopr_sth':             None,
+        'sopr_lth':             None,
+        'supply_in_profit_pct': None,
+    }
+    if not token:
+        return _empty
+    r = requests.get(
+        'https://btc.kaetkung.uk/api/onchain',
+        headers={'Authorization': f'Bearer {token}'},
+        timeout=20,
+    )
+    r.raise_for_status()
+    data = r.json().get('metrics', {})
+
+    def _v(key):
+        v = data.get(key, {}).get('value')
+        return round(float(v), 2) if v is not None else None
+
+    return {
+        'realized_price_sth':   _v('realized_price_sth'),
+        'realized_price_lth':   _v('realized_price_lth'),
+        'true_market_mean':     _v('true_market_mean'),
+        'mvrv_sth':             _v('mvrv_sth'),
+        'mvrv_lth':             _v('mvrv_lth'),
+        'sopr_sth':             _v('sopr_sth'),
+        'sopr_lth':             _v('sopr_lth'),
+        'supply_in_profit_pct': _v('supply_in_profit_pct'),
+    }
 
 
 def _btc_dominance() -> float:
@@ -159,6 +197,17 @@ def fetch_all() -> dict:
 
     fg_value, fg_label = _fear_greed()
 
+    try:
+        bm = _btc_monitor(os.environ.get('BTC_MONITOR_TOKEN'))
+    except Exception:
+        bm = {
+            'realized_price_sth': None, 'realized_price_lth': None,
+            'true_market_mean': None,
+            'mvrv_sth': None, 'mvrv_lth': None,
+            'sopr_sth': None, 'sopr_lth': None,
+            'supply_in_profit_pct': None,
+        }
+
     # BTC dominance direction vs yesterday (cached under "btc" key)
     cache_path = DIR / 'cache.json'
     cache      = json.loads(cache_path.read_text()) if cache_path.exists() else {}
@@ -219,4 +268,13 @@ def fetch_all() -> dict:
         'ema200_series':          ema200_series,
         'ema12_series':           ema12_series,
         'ema26_series':           ema26_series,
+        # btc.kaetkung.uk onchain
+        'realized_price_sth':     bm['realized_price_sth'],
+        'realized_price_lth':     bm['realized_price_lth'],
+        'true_market_mean':       bm['true_market_mean'],
+        'mvrv_sth':               bm['mvrv_sth'],
+        'mvrv_lth':               bm['mvrv_lth'],
+        'sopr_sth':               bm['sopr_sth'],
+        'sopr_lth':               bm['sopr_lth'],
+        'supply_in_profit_pct':   bm['supply_in_profit_pct'],
     }

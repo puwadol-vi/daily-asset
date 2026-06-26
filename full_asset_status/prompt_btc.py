@@ -84,6 +84,15 @@ def build_prompt(data: dict) -> tuple[str, str, str]:
     net_flow   = d['exchange_net_flow']
     flow_str   = _fmt_flow(net_flow)
 
+    def _fv(key, decimals=2):
+        v = d.get(key)
+        return f"{v:.{decimals}f}" if v is not None else 'N/A'
+
+    sth_rp     = f"${_fmt(d.get('realized_price_sth'))}" if d.get('realized_price_sth') else 'N/A'
+    lth_rp     = f"${_fmt(d.get('realized_price_lth'))}" if d.get('realized_price_lth') else 'N/A'
+    tmm        = f"${_fmt(d.get('true_market_mean'))}"   if d.get('true_market_mean')   else 'N/A'
+    profit_pct = f"{d['supply_in_profit_pct']:.1f}%" if d.get('supply_in_profit_pct') else 'N/A'
+
     partial = (
         f"📊 BTC Daily Status — {d['date']}\n"
         f"\n"
@@ -100,9 +109,11 @@ def build_prompt(data: dict) -> tuple[str, str, str]:
         f"• [PATTERN]\n"
         f"\n"
         f"🔗 Onchain\n"
-        f"Realized Price ${_fmt(d['realized_price'])} · MVRV {d['mvrv']:.2f} {mvrv_emoji}\n"
+        f"Realized ${_fmt(d['realized_price'])}  ·  STH {sth_rp}  ·  LTH {lth_rp}  ·  TMM {tmm}\n"
+        f"MVRV {d['mvrv']:.2f} {mvrv_emoji}  ·  STH {_fv('mvrv_sth')}  ·  LTH {_fv('mvrv_lth')}\n"
+        f"SOPR  ·  STH {_fv('sopr_sth', 3)}  ·  LTH {_fv('sopr_lth', 3)}  ·  Supply Profit {profit_pct}\n"
         f"F&G: {d['fg_value']} {d['fg_label']}  · BTC Dom: {d['btc_dominance']:.1f}% {d['btc_dom_direction']}\n"
-        f"Net Unrealized P/L {d['nupl']:.2f} {nupl_emoji} · Reserve {res_val}{res_arrow} {flow_str}"
+        f"NUPL {d['nupl']:.2f} {nupl_emoji}  ·  Reserve {res_val}{res_arrow} {flow_str}"
     )
 
     ohlcv_json   = json.dumps(d['ohlcv_last_60'], separators=(',', ':'))
