@@ -1,6 +1,6 @@
 # Pixel Art Chart — Image Plan
 
-Action Zone (EMA 12/26) · EMA 200 · Asset+date label · Cross marker · Pixel price/month labels
+Action Zone (EMA 12/26) · EMA 200 · Asset+date label · Cross markers · Pixel price/month labels
 
 ---
 
@@ -8,13 +8,13 @@ Action Zone (EMA 12/26) · EMA 200 · Asset+date label · Cross marker · Pixel 
 
 | Parameter | Value | Notes |
 |---|---|---|
-| Internal grid | `200 × 105 px` | Drawing canvas |
-| Scale | `× 6 NEAREST` | Hard pixel edges, no interpolation |
+| Internal grid | `400 × 210 px` | Drawing canvas |
+| Scale | `× 3 NEAREST` | Hard pixel edges, no interpolation |
 | Output | `1200 × 630 px` | Facebook OG · Discord embed |
-| Margins | T:8 · L:4 · R:20 · B:13 | R:20 for price labels · B:13 for month labels |
-| Chart area | `cw=176 · ch=84` | cx=4, cy=8 |
-| Candle slot | `3 px` (2 body + 1 gap) | 58 candles × 3 = 174 px → centered in 176 px |
-| Candles shown | `58` daily | ≈ 2 months |
+| Margins | T:16 · L:8 · R:32 · B:26 | R:32 for price labels ("100K" = 30px + 2px) · B:26 for month labels |
+| Chart area | `cw=360 · ch=168` | cx=8, cy=16 |
+| Candle slot | `3 px` (2 body + 1 gap) | 120 candles × 3 = 360 px → exactly fills cw |
+| Candles shown | `120` daily | ≈ 4 months |
 
 ---
 
@@ -33,8 +33,11 @@ Action Zone (EMA 12/26) · EMA 200 · Asset+date label · Cross marker · Pixel 
 | Cross marker (bull) | Green 2×2 dot above candle high | `rgb(34,197,94)` |
 | Cross marker (bear) | Red 2×2 dot below candle low | `rgb(239,68,68)` |
 | Asset+date label | Dim gray pixel font · top-left | `rgb(74,74,90)` |
+| EMA 200 header indicator | Indigo pixel font · top-right | `rgb(99,102,241)` |
 | Price labels | Dim gray pixel font · right side | `rgb(74,74,90)` |
+| Price tick | Dark gray 2px tick | `rgb(34,34,34)` |
 | Month labels | Dimmer gray pixel font · bottom | `rgb(58,58,74)` |
+| Month tick | Darker gray 3px tick | `rgb(41,41,51)` |
 
 ---
 
@@ -42,16 +45,15 @@ Action Zone (EMA 12/26) · EMA 200 · Asset+date label · Cross marker · Pixel 
 
 | # | Element | How drawn | Data field |
 |---|---|---|---|
-| 0 | Asset + date label | Top-left inside top margin (y=1) · pixel font · e.g. `BTC 16JUN2026` | last `ts` from `ohlcv_last_60` |
-| 1 | Background | Fill entire grid `rgb(13,13,13)` | — |
-| 2 | Action zone fill | Vertical 2px solid band per slot between EMA12 and EMA26. Dark green if bull · dark red if bear. | `ema12_series · ema26_series` |
-| 3 | Candles | Wick 1px col 0 (darker orange) · Body 2px cols 0–1 (bitcoin orange) · min body 1px · same color up & down | `ohlcv_last_60` |
-| 2.5 | Cross marker | One 2×2 dot at most recent EMA12/26 crossover candle. Green dot 3px above high (bull cross) · Red dot 2px below low (bear cross). | `ema12_series · ema26_series · ohlcv_last_60` |
-| 4 | EMA 200 | 1px dot at slot col 1 · every other slot (sparse dotted) | `ema200_series` |
-| 5 | EMA 12 | 1px dot at slot col 0 · every slot | `ema12_series` |
-| 6 | EMA 26 | 1px dot at slot col 1 · every slot | `ema26_series` |
-| 7 | Price labels | Right of chart · every **4000 USD** · pixel font 3×5 · right-aligned · skip if <7px from prev label | `pmin / pmax` from ohlcv + all EMA series |
-| 8 | Month labels | Below chart · first candle of each month · month name only (JAN/FEB…) · pixel font 3×5 · hide if <8px from chart edge | timestamps in `ohlcv_last_60` |
+| 0 | Header labels | Left: `BTC 29JUN2026` at (cx+1, y=2) · Right: `EMA 200` in indigo at (cx+cw-1, y=2) | last `ts` from `ohlcv_last_120` |
+| 1 | Action zone fill | Vertical 2px solid band per slot between EMA12 and EMA26. Dark green `rgb(16,39,24)` if bull · dark red `rgb(45,21,21)` if bear. | `ema12_series · ema26_series` |
+| 2 | Candles | Wick 1px col 0 (darker orange) · Body 2px cols 0–1 (bitcoin orange) · min body 1px · same color up & down | `ohlcv_last_120` |
+| 2.5 | Cross markers | 2×2 dot at **every** EMA12/26 crossover in 120-candle window. Green dot 3px above high (bull cross) · Red dot 2px below low (bear cross). | `ema12_series · ema26_series · ohlcv_last_120` |
+| 3 | EMA 200 | 1px dot at slot col 1 · every other slot (sparse dotted) · clipped if >5% outside candle range | `ema200_series` |
+| 4 | EMA 12 | 1px dot at slot col 0 · every slot | `ema12_series` |
+| 5 | EMA 26 | 1px dot at slot col 1 · every slot | `ema26_series` |
+| 6 | Price labels | Right of chart · every **4000 USD** · pixel font · right-aligned at (GRID_W-2, y-5) · skip if <(font_height+gap) from prev label | `pmin / pmax` from ohlcv + all EMA series |
+| 7 | Month labels | Below chart · first candle of each month · month name only (JAN/FEB…) · pixel font · hide if <11px from chart edge | timestamps in `ohlcv_last_120` |
 
 ---
 
@@ -60,12 +62,13 @@ Action Zone (EMA 12/26) · EMA 200 · Asset+date label · Cross marker · Pixel 
 | Property | Value |
 |---|---|
 | Glyph size | 3 px wide · 5 px tall |
-| Char spacing | 1 px gap between chars → 4 px per char total |
-| "100K" width | 4 chars × 4 − 1 = `15 px` → fits in 20 px right margin |
-| "JUN" width | 3 chars × 4 − 1 = `11 px` → centered under month boundary candle |
+| Scale factor | `S = 2` → each pixel rendered as a 2×2 block |
+| Char spacing | 1 px gap between chars → 4 px per char (×S = 8 px rendered) |
+| "100K" width | 4 chars × 4 − 1 = `15 px` (×S = 30 px) → fits in 32 px right margin |
+| "JUN" width | 3 chars × 4 − 1 = `11 px` (×S = 22 px) → centered under month boundary candle |
 | Chars defined | 0–9 · A B C D E F G J K L M N O P R S T U V Y |
 | Price format | `NNK` or `NNNK` — e.g. `96K`, `100K`, `104K` · step = 4000 USD |
-| Date format | 3-letter month name — `APR`, `MAY`, `JUN` |
+| Date format | `DDMMMYYYY` — e.g. `29JUN2026` |
 
 **Candle anatomy:**
 - Wick — 1px wide (col 0) · full high→low · darker orange `#b86c10`
@@ -78,13 +81,13 @@ Action Zone (EMA 12/26) · EMA 200 · Asset+date label · Cross marker · Pixel 
 
 | fetch\_btc.py field | Type | Used for |
 |---|---|---|
-| `ohlcv_last_60` | list[dict] · 60 items · {open,high,low,close,ts} | Candlesticks · price scale · price labels |
-| `ema200_series` | list[float] · 60 values | EMA 200 indigo dotted line |
-| `ema12_series` | list[float] · 60 values | EMA 12 green line · action zone top/bottom |
-| `ema26_series` | list[float] · 60 values | EMA 26 red line · action zone top/bottom |
+| `ohlcv_last_120` | list[dict] · 120 items · {open,high,low,close,ts} | Candlesticks · price scale · price labels |
+| `ema200_series` | list[float] · 120 values | EMA 200 indigo dotted line |
+| `ema12_series` | list[float] · 120 values | EMA 12 green line · action zone top/bottom |
+| `ema26_series` | list[float] · 120 values | EMA 26 red line · action zone top/bottom |
 
-> `fetch_btc.py` fetches **250 candles** to compute accurate EMA200. Slices last 60 for display.
-> EMA12 and EMA26 pre-computed across all 250 candles, last 60 values stored in `ema12_series` and `ema26_series`.
+> `fetch_btc.py` fetches **350 candles** (200 warmup + 120 chart + buffer) to compute accurate EMA200. Slices last 120 for display.
+> EMA12 and EMA26 pre-computed across all candles; last 120 values stored in `ema12_series` and `ema26_series`.
 
 ---
 
@@ -97,21 +100,25 @@ run_full_btc.py
 │     └── OHLCV: Binance/ccxt · price = daily open
 │         Onchain: CoinMetrics community (MVRV, exchange reserve/flows)
 │         F&G: alternative.me · BTC Dom: CoinGecko
-│         includes: ohlcv_last_60, ema200/12/26_series + all other fields
+│         btc.kaetkung.uk: STH/LTH realized, MVRV/SOPR cohorts, supply profit
+│         includes: ohlcv_last_120, ema200/12/26_series + all other fields
 │
 ├── img_path = generate_chart_btc.generate(data)
-│     uses: ohlcv_last_60, ema200_series, ema12_series, ema26_series
+│     uses: ohlcv_last_120, ema200_series, ema12_series, ema26_series
 │     → pixel art PNG 1200×630
 │
 ├── system_p, user_msg, partial = prompt_btc.build_prompt(data)
-│     uses: price, change_24h, ema200, adx, rsi, action_zone,
+│     uses: price, change_7d, ema200, adx, rsi, action_zone,
 │           bos_status, mvrv, realized_price, nupl,
+│           realized_price_sth/lth, true_market_mean,
+│           mvrv_sth/lth, sopr_sth/lth, supply_in_profit_pct,
 │           exchange_reserve, exchange_net_flow,
 │           fg_value, btc_dominance,
-│           ohlcv_last_60  ← Wave/Pattern analysis
+│           ohlcv_last_120  ← Wave/Pattern analysis
 │
 ├── discord_msg = claude_api(system_p, user_msg) → assemble(partial, ai_read)
 │
-└── post_discord(discord_msg, img_path)
-      → one multipart POST · image appears above text in Discord
+└── post_discord(discord_msg, img_path) + post_facebook(img_path, discord_msg)
+      → Discord: multipart POST · image above text
+      → Facebook: upload photo unpublished → create feed post with attachment
 ```

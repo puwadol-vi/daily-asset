@@ -154,7 +154,7 @@ def _bos(close: pd.Series) -> str:
 
 
 def fetch_all() -> dict:
-    raw = _fetch_ohlcv(250)
+    raw = _fetch_ohlcv(350)  # 200 warmup + 120 chart + buffer for complete EMA200
     df  = pd.DataFrame(raw, columns=['ts', 'open', 'high', 'low', 'close', 'volume'])
     close, high, low = df['close'], df['high'], df['low']
 
@@ -165,9 +165,10 @@ def fetch_all() -> dict:
     rsi_s  = ta.rsi(close, 14)
 
     # Daily open = fixed reference price, doesn't drift during the day
-    price_now  = float(df['open'].iloc[-1])
-    price_prev = float(df['open'].iloc[-2])
-    change_24h = (price_now / price_prev - 1) * 100
+    price_now    = float(df['open'].iloc[-1])
+    price_prev   = float(df['open'].iloc[-2])
+    change_24h   = (price_now / price_prev - 1) * 100
+    change_7d    = (price_now / float(df['open'].iloc[-8]) - 1) * 100
 
     action_zone, cross_price, cross_date, action_days = _action_zone(
         ema12, ema26, close, df['ts']
@@ -221,15 +222,15 @@ def fetch_all() -> dict:
     }
     cache_path.write_text(json.dumps(cache, indent=2))
 
-    tail60        = df.tail(60)
-    ohlcv_last_60 = [
+    tail120        = df.tail(120)
+    ohlcv_last_120 = [
         {'open': float(r.open), 'high': float(r.high),
          'low': float(r.low), 'close': float(r.close), 'ts': int(r.ts)}
-        for r in tail60.itertuples()
+        for r in tail120.itertuples()
     ]
-    ema200_series = [float(v) if pd.notna(v) else None for v in ema200.tail(60)]
-    ema12_series  = [float(v) if pd.notna(v) else None for v in ema12.tail(60)]
-    ema26_series  = [float(v) if pd.notna(v) else None for v in ema26.tail(60)]
+    ema200_series = [float(v) if pd.notna(v) else None for v in ema200.tail(120)]
+    ema12_series  = [float(v) if pd.notna(v) else None for v in ema12.tail(120)]
+    ema26_series  = [float(v) if pd.notna(v) else None for v in ema26.tail(120)]
 
     adx_col = next(c for c in adx_df.columns if c.startswith('ADX_'))
     adx_val = float(adx_df[adx_col].iloc[-1])
@@ -242,6 +243,7 @@ def fetch_all() -> dict:
         'date':                   candle_date,
         'price':                  round(price_now, 2),
         'change_24h':             round(change_24h, 2),
+        'change_7d':              round(change_7d, 2),
         'ema200':                 round(float(ema200.iloc[-1]), 2),
         'above_ema200':           price_now > float(ema200.iloc[-1]),
         'adx':                    round(adx_val, 1),
@@ -264,7 +266,7 @@ def fetch_all() -> dict:
         'exchange_reserve':       sply_ex,
         'exchange_reserve_trend': ex_trend,
         'exchange_net_flow':      net_flow,
-        'ohlcv_last_60':          ohlcv_last_60,
+        'ohlcv_last_120':         ohlcv_last_120,
         'ema200_series':          ema200_series,
         'ema12_series':           ema12_series,
         'ema26_series':           ema26_series,

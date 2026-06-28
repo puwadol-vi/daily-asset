@@ -6,15 +6,43 @@ from pathlib import Path
 from dotenv import load_dotenv
 import anthropic
 
-# make sibling imports work whether run from repo root or this directory
 sys.path.insert(0, str(Path(__file__).parent))
 
 from fetch_btc import fetch_all
 from prompt_btc import build_prompt, assemble
 from generate_chart_btc import generate as generate_chart
 
-# load .env from repo root (one level up from full_asset_status/)
 load_dotenv(Path(__file__).parent.parent / '.env')
+
+
+def _post_facebook(img_path: str, caption: str) -> None:
+    page_id = os.environ.get('FACEBOOK_PAGE_ID')
+    token   = os.environ.get('FACEBOOK_PAGE_TOKEN')
+    if not page_id or not token:
+        print('Facebook: skipped (no credentials)')
+        return
+
+    # Step 1: upload image as unpublished → no premature feed story
+    with open(img_path, 'rb') as f:
+        r1 = requests.post(
+            f'https://graph.facebook.com/v19.0/{page_id}/photos',
+            data={'published': 'false', 'access_token': token},
+            files={'source': f},
+        )
+    r1.raise_for_status()
+    photo_id = r1.json()['id']
+
+    # Step 2: create feed post with photo + caption (JSON body → UTF-8 → emojis work)
+    r2 = requests.post(
+        f'https://graph.facebook.com/v19.0/{page_id}/feed',
+        json={
+            'access_token':   token,
+            'message':        caption,
+            'attached_media': [{'media_fbid': photo_id}],
+        },
+    )
+    r2.raise_for_status()
+    print(f'Facebook: posted (id={r2.json().get("id")})')
 
 
 def main() -> None:
@@ -22,16 +50,12 @@ def main() -> None:
     if not cache_path.exists():
         cache_path.write_text(json.dumps({'btc': {}}, indent=2))
 
-    # 1. fetch all data once — shared by image and text
     data = fetch_all()
 
-    # 2. pixel art chart image (ohlcv_last_60, ema200/12/26_series)
     img_path = generate_chart(data, output_path='/tmp/btc_chart.png')
 
-    # 3. build partial message (all labels pre-computed) + Claude prompt (ohlcv only)
     system_prompt, user_message, partial = build_prompt(data)
 
-    # 4. Claude API → Wave + Pattern lines only
     client = anthropic.Anthropic(api_key=os.environ['ANTHROPIC_API_KEY'])
     response = client.messages.create(
         model='claude-opus-4-7',
@@ -41,7 +65,6 @@ def main() -> None:
     )
     discord_message = assemble(partial, response.content[0].text)
 
-    # 5. post image + text to both Discord channels
     webhooks = [
         os.environ['DISCORD_WEBHOOK_URL'],
         os.environ['FULL_ASSET_WEBHOOK_URL'],
@@ -54,6 +77,8 @@ def main() -> None:
                 data={'payload_json': json.dumps({'content': discord_message})},
             )
         resp.raise_for_status()
+
+    _post_facebook(img_path, discord_message)
 
     print(f"Posted: {data['date']}")
 

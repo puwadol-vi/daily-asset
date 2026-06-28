@@ -90,70 +90,73 @@ td .muted { color: var(--muted); font-size: 12px; }
 <body>
 <div class="container">
 
-<h1>📊 Daily Asset Status — Post Plan</h1>
-<p class="subtitle">Layout · Data Sources · Per-Asset Thresholds · Daily Workflow</p>
+<h1>📊 BTC Weekly Status — Post Plan</h1>
+<p class="subtitle">Layout · Data Sources · Per-Asset Thresholds · Weekly Workflow</p>
 
 <!-- ═══ SECTION 1 ═══ -->
 <div class="section">
   <div class="section-header">
     <div class="section-num">1</div>
-    <h2>Post Text Layout — 1 Asset per Post</h2>
+    <h2>Post Text Layout — BTC Weekly</h2>
   </div>
 
-  <!-- ── 1A: CRYPTO LAYOUT ── -->
-  <h3 style="margin-bottom:12px;">₿ Crypto — Layout</h3>
+  <!-- ── 1A: BTC LAYOUT ── -->
+  <h3 style="margin-bottom:12px;">₿ BTC Weekly — Layout</h3>
   <div class="post-grid">
 
     <div class="post-box">
       <div class="post-box-header"><span class="dot dot-fb"></span> Facebook</div>
-<div class="post-content">📊 BTC Daily Status — <span class="tvar">[DATE e.g. Jun 14, 2026]</span>
+<div class="post-content">📊 BTC Weekly Status — <span class="tvar">[DATE e.g. Jun 28, 2026]</span>
 
-[<span class="buy">🟢 BTC</span>/<span class="exit">🔴 BTC</span>] · $<span class="tvar">[PRICE]</span>  (<span class="tvar">[+/-X.XX%]</span>)
+[<span class="buy">🟢 BTC</span> / <span class="exit">🔴 BTC</span>] · $<span class="tvar">[PRICE]</span>  (<span class="tvar">[+/-X.XX%]</span> 7d)
 
 📈 Technical
-• EMA 200: <span class="tvar">[🟢/🔴]</span> $<span class="tvar">[EMA200]</span>  |  ADX: <span class="tvar">[VALUE]</span> <span class="tvar">[🟢/🔴]</span>  |  RSI: <span class="tvar">[VALUE]</span> <span class="tvar">[🔵/🟢/🟡/🔴]</span>
-• Action Zone: <span class="tvar">[🟢/🔴]</span> $<span class="tvar">[CROSS PRICE]</span> <span class="tvar">[CROSS DATE]</span> (<span class="tvar">[N]</span> days)
+• EMA 200: <span class="tvar">[🟢/🔴]</span>  |  ADX: <span class="tvar">[X.X]</span> <span class="tvar">[🟢/🔴]</span>  |  RSI: <span class="tvar">[X.X]</span> <span class="tvar">[🔵/🟢/🟡/🔴]</span>
+• Action Zone: <span class="tvar">[🟢/🔴]</span> $<span class="tvar">[CROSS PRICE]</span> (<span class="tvar">[N]</span> days ago)
 • Key Levels: R $<span class="tvar">[RESISTANCE]</span>  |  S $<span class="tvar">[SUPPORT]</span>
-• BOS: <span class="tvar">[HH/HL intact / LH forming — first warning / BOS confirmed]</span>
-
-🤖 AI Read
-• Wave: <span class="tvar">[Wave 3 push / W4 pullback / W5 warn / A-B-C correction / Unclear]</span> · <span class="tvar">[X% to R $Y / on S $Z]</span>
-• Pattern: <span class="tvar">[Bull flag / Bear flag / Ascending triangle / Wedge / No clear pattern]</span>
+• BOS: <span class="tvar">[HH/HL intact — N consecutive HHs / LH forming — first warning / BOS confirmed]</span>
 
 🔗 Onchain
-Realized Price <span class="tvar">[V]</span> · MVRV <span class="tvar">[V]</span> <span class="tvar">[🟢/🟡/🔴]</span>
-F&G: <span class="tvar">[VALUE]</span> <span class="tvar">[Extreme Fear/Fear/Neutral/Greed/Extreme Greed]</span>  · <span class="tvar">[ASSET]</span> Dom: <span class="tvar">[X.X%]</span> <span class="tvar">[↑/↓]</span>
-Net Unrealized P/L <span class="tvar">[V]</span> <span class="tvar">[🟢/🟡/🔴]</span> · Reserve <span class="tvar">[VALUE]</span><span class="tvar">[↓/↑]</span> <span class="tvar">[NET±FLOW]</span><span class="tvar">[↓/↑]</span> <span class="tvar">[🟢/🔴]</span></div>
+Realized $<span class="tvar">[V]</span>  ·  STH $<span class="tvar">[V]</span>  ·  LTH $<span class="tvar">[V]</span>  ·  TMM $<span class="tvar">[V]</span>
+MVRV <span class="tvar">[V]</span> <span class="tvar">[🔵/🟢/🟡/🔴]</span>  ·  STH <span class="tvar">[V]</span>  ·  LTH <span class="tvar">[V]</span>
+SOPR  ·  STH <span class="tvar">[V]</span>  ·  LTH <span class="tvar">[V]</span>  ·  Supply Profit <span class="tvar">[X%]</span>
+F&G: <span class="tvar">[VALUE]</span> <span class="tvar">[Label]</span>  · Dom: <span class="tvar">[X.X%]</span>
+NUPL <span class="tvar">[V]</span> <span class="tvar">[🔵/🟢/🟡/🔴]</span>  ·  Reserve <span class="tvar">[VALUE]</span><span class="tvar">[↓/↑]</span> <span class="tvar">[±FLOW]</span>
+
+🤖 AI Read
+• Wave: <span class="tvar">[call]</span> · <span class="tvar">[1-line context]</span>
+• Pattern: <span class="tvar">[call]</span></div>
       <div class="post-note">
-        Price = daily open (00:00 UTC) · % = today open vs yesterday open<br>
-        Action Zone: 🟢 = EMA12 above EMA26 · 🔴 = below<br>
-        Reserve: VALUE = exchange reserve (e.g. 2.64M BTC) · ↓/↑ = reserve trend · NET FLOW = inflow−outflow with direction arrow
+        Price = daily open (00:00 UTC) · 7d % = today open ÷ open 8 days ago<br>
+        Action Zone: 🟢 = EMA12 above EMA26 · 🔴 = below (no date — just days count)<br>
+        Onchain: global Realized/MVRV/NUPL from CoinMetrics · STH/LTH/SOPR from btc.kaetkung.uk
       </div>
     </div>
 
     <div class="post-box">
       <div class="post-box-header"><span class="dot dot-dc"></span> Discord</div>
-<div class="post-content">**📊 BTC Daily Status — <span class="tvar">[DATE e.g. Jun 14, 2026]</span>**
-━━━━━━━━━━━━━━━━━━━━━
-**[<span class="buy">🟢 BTC</span>/<span class="exit">🔴 BTC</span>]** · `$<span class="tvar">[PRICE]</span>` **(<span class="tvar">[+/-X.XX%]</span>)**
-━━━━━━━━━━━━━━━━━━━━━
-**Tech**
-EMA200 <span class="tvar">[🟢/🔴]</span> `$<span class="tvar">[EMA200]</span>` · ADX `<span class="tvar">[VAL]</span>` <span class="tvar">[🟢/🔴]</span> · RSI `<span class="tvar">[VAL]</span>` <span class="tvar">[🔵/🟢/🟡/🔴]</span>
-Action Zone: <span class="tvar">[🟢/🔴]</span> `$<span class="tvar">[CROSS PRICE]</span>` <span class="tvar">[CROSS DATE]</span> (<span class="tvar">[N]</span> days)
-Key Levels: R `$<span class="tvar">[RESISTANCE]</span>`  |  S `$<span class="tvar">[SUPPORT]</span>`
-BOS: <span class="tvar">[HH/HL intact / LH forming — first warning / BOS confirmed]</span>
+<div class="post-content">📊 BTC Weekly Status — <span class="tvar">[DATE e.g. Jun 28, 2026]</span>
 
-**AI Read**
-Wave: <span class="tvar">[Wave 3 push / W4 pullback / W5 warn / A-B-C correction / Unclear]</span> · <span class="tvar">[X% to R $Y / on S $Z]</span>
-Pattern: <span class="tvar">[Bull flag / Bear flag / Ascending triangle / Wedge / No clear pattern]</span>
+[<span class="buy">🟢 BTC</span> / <span class="exit">🔴 BTC</span>] · $<span class="tvar">[PRICE]</span>  (<span class="tvar">[+/-X.XX%]</span> 7d)
 
-**Onchain**
-Realized Price `<span class="tvar">[V]</span>` · MVRV `<span class="tvar">[V]</span>` <span class="tvar">[🟢/🟡/🔴]</span>
-F&G `<span class="tvar">[VALUE]</span>` <span class="tvar">[Extreme Fear/Fear/Neutral/Greed/Extreme Greed]</span>  · Dom `<span class="tvar">[X.X%]</span>` <span class="tvar">[↑/↓]</span>
-Net Unrealized P/L `<span class="tvar">[V]</span>` <span class="tvar">[🟢/🟡/🔴]</span> · Reserve `<span class="tvar">[VALUE]</span>`<span class="tvar">[↓/↑]</span> `<span class="tvar">[NET±FLOW]</span>`<span class="tvar">[↓/↑]</span> <span class="tvar">[🟢/🔴]</span></div>
+📈 Technical
+• EMA 200: <span class="tvar">[🟢/🔴]</span>  |  ADX: <span class="tvar">[X.X]</span> <span class="tvar">[🟢/🔴]</span>  |  RSI: <span class="tvar">[X.X]</span> <span class="tvar">[🔵/🟢/🟡/🔴]</span>
+• Action Zone: <span class="tvar">[🟢/🔴]</span> $<span class="tvar">[CROSS PRICE]</span> (<span class="tvar">[N]</span> days ago)
+• Key Levels: R $<span class="tvar">[RESISTANCE]</span>  |  S $<span class="tvar">[SUPPORT]</span>
+• BOS: <span class="tvar">[HH/HL intact — N consecutive HHs / LH forming — first warning / BOS confirmed]</span>
+
+🔗 Onchain
+Realized $<span class="tvar">[V]</span>  ·  STH $<span class="tvar">[V]</span>  ·  LTH $<span class="tvar">[V]</span>  ·  TMM $<span class="tvar">[V]</span>
+MVRV <span class="tvar">[V]</span> <span class="tvar">[🔵/🟢/🟡/🔴]</span>  ·  STH <span class="tvar">[V]</span>  ·  LTH <span class="tvar">[V]</span>
+SOPR  ·  STH <span class="tvar">[V]</span>  ·  LTH <span class="tvar">[V]</span>  ·  Supply Profit <span class="tvar">[X%]</span>
+F&G: <span class="tvar">[VALUE]</span> <span class="tvar">[Label]</span>  · Dom: <span class="tvar">[X.X%]</span>
+NUPL <span class="tvar">[V]</span> <span class="tvar">[🔵/🟢/🟡/🔴]</span>  ·  Reserve <span class="tvar">[VALUE]</span><span class="tvar">[↓/↑]</span> <span class="tvar">[±FLOW]</span>
+
+🤖 AI Read
+• Wave: <span class="tvar">[call]</span> · <span class="tvar">[1-line context]</span>
+• Pattern: <span class="tvar">[call]</span></div>
       <div class="post-note">
-        SOL / BNB / XRP: skip Net Unrealized P/L — limited data<br>
-        Reserve VALUE = e.g. 2.64M BTC · NET FLOW = inflow−outflow (negative = net outflow = bullish)
+        Same text sent to Discord and Facebook — no markdown formatting differences
       </div>
     </div>
 
@@ -161,56 +164,65 @@ Net Unrealized P/L `<span class="tvar">[V]</span>` <span class="tvar">[🟢/🟡
 
   <hr class="divider">
 
-  <!-- ── 1B: CRYPTO EXAMPLE ── -->
-  <h3 style="margin-bottom:12px;">₿ Crypto — Example (BTC, Jun 14, 2026)</h3>
+  <!-- ── 1B: BTC EXAMPLE ── -->
+  <h3 style="margin-bottom:12px;">₿ BTC Weekly — Example (Jun 28, 2026)</h3>
   <div class="post-grid">
 
     <div class="post-box">
       <div class="post-box-header"><span class="dot dot-fb"></span> Facebook</div>
-<div class="post-content">📊 BTC Daily Status — Jun 14, 2026
+<div class="post-content">📊 BTC Weekly Status — Jun 28, 2026
 
-<span class="buy">🟢 BTC</span> · $105,200  (+2.8%)
+<span class="exit">🔴 BTC</span> · $61,200  (-4.30% 7d)
 
 📈 Technical
-• EMA 200: 🟢 $72,400  |  ADX: 34.6 🟢  |  RSI: 58 🟢
-• Action Zone: 🟢 $87,500  Apr 15, 2026 (60 days)
-• Key Levels: R $112,000  |  S $98,500
-• BOS: HH/HL intact — 3 consecutive HHs, no warning
-
-🤖 AI Read
-• Wave: Wave 3 push ongoing · held $98,500 HL on Jun 12 · 6.5% to R $112,000
-• Pattern: Bull flag on EMA50 retest — tight consolidation after impulse leg
+• EMA 200: 🔴  |  ADX: 28.4 🟢  |  RSI: 38.2 🟢
+• Action Zone: 🔴 $72,400 (45 days ago)
+• Key Levels: R $68,000  |  S $58,500
+• BOS: LH forming — first warning
 
 🔗 Onchain
-Realized Price $62,800 · MVRV 1.68 🟢
-F&G: 72 Greed  · BTC Dom: 54.2% ↑
-Net Unrealized P/L 0.41 🟢 · Reserve 2.64M↓ -4.5K↓ 🟢</div>
+Realized $53,194  ·  STH $70,758  ·  LTH $49,768  ·  TMM $90,631
+MVRV 1.12 🟢  ·  STH 0.88  ·  LTH 1.26
+SOPR  ·  STH 0.990  ·  LTH 0.790  ·  Supply Profit 50.0%
+F&G: 13 Extreme Fear  · Dom: 55.7%
+NUPL 0.11 🟢  ·  Reserve 2.65M↑ +41
+
+🤖 AI Read
+• Wave: A-B-C correction · testing $58,500 S zone
+• Pattern: Descending channel — lower highs since May top</div>
       <div class="post-note">All values filled in — no pink variables</div>
     </div>
 
     <div class="post-box">
       <div class="post-box-header"><span class="dot dot-dc"></span> Discord</div>
-<div class="post-content">**📊 BTC Daily Status — Jun 14, 2026**
-━━━━━━━━━━━━━━━━━━━━━
-**<span class="buy">🟢 BTC</span>** · `$105,200.00` **(+2.80%)**
-━━━━━━━━━━━━━━━━━━━━━
-**Tech**
-EMA200 🟢 `$72,400` · ADX `34.6` 🟢 · RSI `58` 🟢
-Action Zone: 🟢 `$87,500.00`  Apr 15, 2026 (60 days)
-Key Levels: R `$112,000.00`  |  S `$98,500.00`
-BOS: HH/HL intact — 3 consecutive HHs, no warning
+<div class="post-content">📊 BTC Weekly Status — Jun 28, 2026
 
-**AI Read**
-Wave: Wave 3 push ongoing · held $98,500.00 HL on Jun 12 · 6.5% to R $112,000.00
-Pattern: Bull flag on EMA50 retest — tight consolidation after impulse leg
+<span class="exit">🔴 BTC</span> · $61,200  (-4.30% 7d)
 
-**Onchain**
-Realized Price `$62,800.00` · MVRV `1.68` 🟢
-F&G `72` Greed  · Dom `54.2%` ↑
-Net Unrealized P/L `0.41` 🟢 · Reserve `2.64M`↓ `-4.5K`↓ 🟢</div>
-      <div class="post-note">All values filled in — no pink variables</div>
+📈 Technical
+• EMA 200: 🔴  |  ADX: 28.4 🟢  |  RSI: 38.2 🟢
+• Action Zone: 🔴 $72,400 (45 days ago)
+• Key Levels: R $68,000  |  S $58,500
+• BOS: LH forming — first warning
+
+🔗 Onchain
+Realized $53,194  ·  STH $70,758  ·  LTH $49,768  ·  TMM $90,631
+MVRV 1.12 🟢  ·  STH 0.88  ·  LTH 1.26
+SOPR  ·  STH 0.990  ·  LTH 0.790  ·  Supply Profit 50.0%
+F&G: 13 Extreme Fear  · Dom: 55.7%
+NUPL 0.11 🟢  ·  Reserve 2.65M↑ +41
+
+🤖 AI Read
+• Wave: A-B-C correction · testing $58,500 S zone
+• Pattern: Descending channel — lower highs since May top</div>
+      <div class="post-note">Identical text — same post sent to Discord and Facebook</div>
     </div>
 
+  </div>
+
+  <div class="note-block" style="margin-top:16px;">
+    <strong>📷 Chart Image</strong> — 1200×630 px pixel art PNG attached to every post<br>
+    120 daily candles · EMA 200 (indigo dotted) · Action Zone fill between EMA 26 and EMA 12 (green = bullish · red = bearish) · cross markers at every EMA12/26 crossover
   </div>
 
   <hr class="divider">

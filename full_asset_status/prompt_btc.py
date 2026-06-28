@@ -47,7 +47,7 @@ Return exactly 2 lines — no intro, no extra text, nothing else:
 Wave: [your call] · [1-line context]
 Pattern: [your call]
 
-WAVE (Elliott Wave — use ohlcv_last_60, 60 daily candles oldest→newest):
+WAVE (Elliott Wave — use ohlcv_last_120, 120 daily candles oldest→newest):
 Count impulse (1→2→3→4→5) or corrective (A→B→C).
 Rules:
 • W2 retraces 50–61.8% of W1 (buy zone)
@@ -58,7 +58,7 @@ Rules:
 Calls: "Wave 3 push ongoing" | "W4 pullback — watch for re-entry" | "W5 warn — approach exit" | "A-B-C correction" | "Unclear"
 Context (after ·): 1 key observation e.g. "held $98,500 HL on Jun 12 · 6.5% to R $112,000"
 
-PATTERN (use ohlcv_last_60):
+PATTERN (use ohlcv_last_120):
 Types: bull flag · bear flag · ascending triangle · descending triangle · rising wedge · falling wedge · ascending channel · "No clear pattern"
 Add one brief note about where price sits relative to the pattern.
 """
@@ -75,7 +75,7 @@ def build_prompt(data: dict) -> tuple[str, str, str]:
     az_emoji   = '🟢' if d['action_zone'] == 'bullish' else '🔴'
     mvrv_emoji = _mvrv_emoji(d['mvrv']) if d['mvrv'] else '⚪'
     nupl_emoji = _nupl_emoji(d['nupl']) if d['nupl'] is not None else '⚪'
-    chg        = f"+{d['change_24h']:.2f}" if d['change_24h'] >= 0 else f"{d['change_24h']:.2f}"
+    chg        = f"+{d['change_7d']:.2f}" if d['change_7d'] >= 0 else f"{d['change_7d']:.2f}"
     r_str      = f"${_fmt(d['resistance'])}" if d['resistance'] else 'N/A'
     s_str      = f"${_fmt(d['support'])}"    if d['support']    else 'N/A'
 
@@ -94,9 +94,9 @@ def build_prompt(data: dict) -> tuple[str, str, str]:
     profit_pct = f"{d['supply_in_profit_pct']:.1f}%" if d.get('supply_in_profit_pct') else 'N/A'
 
     partial = (
-        f"📊 BTC Daily Status — {d['date']}\n"
+        f"📊 BTC Weekly Status — {d['date']}\n"
         f"\n"
-        f"{signal} · ${_fmt(d['price'])}  ({chg}%)\n"
+        f"{signal} · ${_fmt(d['price'])}  ({chg}% 7d)\n"
         f"\n"
         f"📈 Technical\n"
         f"• EMA 200: {ema_check}  |  ADX: {d['adx']:.1f} {adx_check}  |  RSI: {d['rsi']:.1f} {rsi_emoji}\n"
@@ -104,21 +104,21 @@ def build_prompt(data: dict) -> tuple[str, str, str]:
         f"• Key Levels: R {r_str}  |  S {s_str}\n"
         f"• BOS: {d['bos_status']}\n"
         f"\n"
-        f"🤖 AI Read\n"
-        f"• [WAVE]\n"
-        f"• [PATTERN]\n"
-        f"\n"
         f"🔗 Onchain\n"
         f"Realized ${_fmt(d['realized_price'])}  ·  STH {sth_rp}  ·  LTH {lth_rp}  ·  TMM {tmm}\n"
         f"MVRV {d['mvrv']:.2f} {mvrv_emoji}  ·  STH {_fv('mvrv_sth')}  ·  LTH {_fv('mvrv_lth')}\n"
         f"SOPR  ·  STH {_fv('sopr_sth', 3)}  ·  LTH {_fv('sopr_lth', 3)}  ·  Supply Profit {profit_pct}\n"
-        f"F&G: {d['fg_value']} {d['fg_label']}  · BTC Dom: {d['btc_dominance']:.1f}% {d['btc_dom_direction']}\n"
-        f"NUPL {d['nupl']:.2f} {nupl_emoji}  ·  Reserve {res_val}{res_arrow} {flow_str}"
+        f"F&G: {d['fg_value']} {d['fg_label']}  · Dom: {d['btc_dominance']:.1f}%\n"
+        f"NUPL {d['nupl']:.2f} {nupl_emoji}  ·  Reserve {res_val}{res_arrow} {flow_str}\n"
+        f"\n"
+        f"🤖 AI Read\n"
+        f"• [WAVE]\n"
+        f"• [PATTERN]"
     )
 
-    ohlcv_json   = json.dumps(d['ohlcv_last_60'], separators=(',', ':'))
+    ohlcv_json   = json.dumps(d['ohlcv_last_120'], separators=(',', ':'))
     user_message = (
-        f"ohlcv_last_60 (60 daily candles, oldest→newest):\n{ohlcv_json}\n\n"
+        f"ohlcv_last_120 (120 daily candles, oldest→newest):\n{ohlcv_json}\n\n"
         f"resistance={d['resistance']}  support={d['support']}\n\n"
         "Write the 2 AI Read lines."
     )

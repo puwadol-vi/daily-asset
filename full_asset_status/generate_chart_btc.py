@@ -1,32 +1,33 @@
 from PIL import Image, ImageDraw
 from datetime import datetime, timezone
 
-GRID_W, GRID_H = 200, 105
-SCALE = 6  # → 1200 × 630
+GRID_W, GRID_H = 400, 210
+SCALE = 3  # → 1200 × 630
 
 C_BG          = (13,  13,  13)
-C_UP          = (247, 147, 26)   # bitcoin orange (all candles)
-C_UP_WICK     = (184, 108, 16)   # darker orange (all wicks)
-C_EMA200      = (99,  102, 241)  # indigo
+C_UP          = (247, 147, 26)
+C_UP_WICK     = (184, 108, 16)
+C_EMA200      = (99,  102, 241)  # indigo/blue
 C_EMA12       = (34,  197, 94)   # green
 C_EMA26       = (239, 68,  68)   # red
-C_ZONE_BULL   = (16,  39,  24)   # dark green fill
-C_ZONE_BEAR   = (45,  21,  21)   # dark red fill
-C_SPOT_UP     = (34,  197, 94)   # green dot above up candle
-C_SPOT_DOWN   = (239, 68,  68)   # red dot below down candle
+C_ZONE_BULL   = (16,  39,  24)
+C_ZONE_BEAR   = (45,  21,  21)
+C_SPOT_UP     = (34,  197, 94)
+C_SPOT_DOWN   = (239, 68,  68)
 C_PRICE_LABEL = (74,  74,  90)
 C_MONTH_LABEL = (58,  58,  74)
 C_TICK        = (34,  34,  34)
 C_MONTH_TICK  = (41,  41,  51)
 
-MARGIN_TOP    = 8
-MARGIN_LEFT   = 4
-MARGIN_RIGHT  = 20   # room for price labels ("100K" = 15px + padding)
-MARGIN_BOTTOM = 13   # room for month labels (tick + gap + 5px font)
-N_CANDLES     = 58
+MARGIN_TOP    = 16
+MARGIN_LEFT   = 8
+MARGIN_RIGHT  = 32   # "100K" = 30px + 2px padding
+MARGIN_BOTTOM = 26   # tick(2) + gap(2) + font(10) + pad(12)
+N_CANDLES     = 120
 BODY_W        = 2
 SLOT_W        = 3    # 2px body + 1px gap
 PRICE_STEP    = 4000
+S             = 2    # font scale: 3×5 → 6×10 per character
 
 MONTH_NAMES = ['JAN','FEB','MAR','APR','MAY','JUN',
                'JUL','AUG','SEP','OCT','NOV','DEC']
@@ -68,8 +69,8 @@ FONT_3X5 = {
 
 
 def _px_text_width(text: str) -> int:
-    # each char: 3px wide + 1px gap; last char has no trailing gap
-    return max(0, len(text) * 4 - 1)
+    # each char: 3S wide + S gap; last char has no trailing gap
+    return max(0, len(text) * (3 * S + S) - S)
 
 
 def _draw_px_text(draw: ImageDraw.Draw, x: int, y: int,
@@ -81,40 +82,51 @@ def _draw_px_text(draw: ImageDraw.Draw, x: int, y: int,
     for ch in text:
         glyph = FONT_3X5.get(ch)
         if glyph is None:
-            cx += 4
+            cx += (3 + 1) * S
             continue
         for row, bits in enumerate(glyph):
             for col in range(3):
                 if bits & (4 >> col):
-                    draw.point((cx + col, y + row), fill=color)
-        cx += 4
+                    draw.rectangle(
+                        [cx + col * S,       y + row * S,
+                         cx + col * S + S-1, y + row * S + S-1],
+                        fill=color,
+                    )
+        cx += (3 + 1) * S
 
 
 def generate(data: dict, output_path: str = '/tmp/btc_chart.png') -> str:
-    ohlcv  = data['ohlcv_last_60']   # list of {open,high,low,close,ts}  ts = ms epoch
-    ema200 = data['ema200_series']    # 60 floats
-    ema12  = data['ema12_series']     # 60 floats
-    ema26  = data['ema26_series']     # 60 floats
+    ohlcv  = data['ohlcv_last_120']
+    ema200 = data['ema200_series']
+    ema12  = data['ema12_series']
+    ema26  = data['ema26_series']
 
     img  = Image.new('RGB', (GRID_W, GRID_H), C_BG)
     draw = ImageDraw.Draw(img)
 
-    # ── 0. asset + date label (top-left, inside top margin) ─────────────────
+    cx = MARGIN_LEFT
+    cy = MARGIN_TOP
+    cw = GRID_W - MARGIN_LEFT - MARGIN_RIGHT   # 360
+    ch = GRID_H - MARGIN_TOP  - MARGIN_BOTTOM  # 168
+
+    # ── 0. header: date label (left) + EMA200 indicator (right) ─────────────
     last_ts  = ohlcv[-1].get('ts', 0)
     last_dt  = datetime.fromtimestamp(last_ts / 1000, tz=timezone.utc)
     lbl_text = 'BTC ' + last_dt.strftime('%d%b%Y').upper()
-    _draw_px_text(draw, MARGIN_LEFT + 1, 1, lbl_text, C_PRICE_LABEL, align='left')
+    _draw_px_text(draw, cx + 1, 2, lbl_text, C_PRICE_LABEL, align='left')
+    _draw_px_text(draw, cx + cw - 1, 2, 'EMA 200', C_EMA200, align='right')
 
-    cx = MARGIN_LEFT
-    cy = MARGIN_TOP
-    cw = GRID_W - MARGIN_LEFT - MARGIN_RIGHT   # 176
-    ch = GRID_H - MARGIN_TOP  - MARGIN_BOTTOM  # 84
+    # price scale — exclude EMA200 values that are >5% outside candle range
+    candle_high   = max(c['high'] for c in ohlcv[-N_CANDLES:])
+    candle_low    = min(c['low']  for c in ohlcv[-N_CANDLES:])
+    ema200_hi_cut = candle_high * 1.05
+    ema200_lo_cut = candle_low  * 0.95
 
-    # price scale — include all EMA series so chart never clips
     all_prices = (
         [c['high'] for c in ohlcv] +
         [c['low']  for c in ohlcv] +
-        [v for v in ema200 + ema12 + ema26 if v is not None]
+        [v for v in ema200[-N_CANDLES:] if v is not None and ema200_lo_cut <= v <= ema200_hi_cut] +
+        [v for v in ema12 + ema26 if v is not None]
     )
     pmax = max(all_prices) * 1.006
     pmin = min(all_prices) * 0.994
@@ -123,9 +135,8 @@ def generate(data: dict, output_path: str = '/tmp/btc_chart.png') -> str:
     def to_y(price: float) -> int:
         return int(cy + (pmax - price) / pr * ch)
 
-    # candle block — 58 slots × 3px = 174px, centered in 176px chart width
-    total_w = N_CANDLES * SLOT_W          # 174
-    start_x = cx + (cw - total_w) // 2   # 5
+    total_w = N_CANDLES * SLOT_W          # 360
+    start_x = cx + (cw - total_w) // 2   # 8
 
     # ── 1. action zone fill (between EMA12 and EMA26) ──────────────────────
     for i, (v12, v26) in enumerate(zip(ema12[-N_CANDLES:], ema26[-N_CANDLES:])):
@@ -138,37 +149,31 @@ def generate(data: dict, output_path: str = '/tmp/btc_chart.png') -> str:
         for y in range(y_top, y_bot + 1):
             draw.line([(x, y), (x + BODY_W - 1, y)], fill=fill)
 
-    # ── 2. candles (all bitcoin orange) ─────────────────────────────────────
+    # ── 2. candles ───────────────────────────────────────────────────────────
     for i, c in enumerate(ohlcv[-N_CANDLES:]):
-        x     = start_x + i * SLOT_W
-        is_up = c['close'] >= c['open']
-
+        x      = start_x + i * SLOT_W
         y_high = to_y(c['high'])
         y_low  = to_y(c['low'])
         y_top  = to_y(max(c['open'], c['close']))
         y_bot  = max(to_y(min(c['open'], c['close'])), y_top + 1)
-
         draw.line([(x, y_high), (x, y_low)], fill=C_UP_WICK)
         draw.rectangle([x, y_top, x + BODY_W - 1, y_bot], fill=C_UP)
 
-    # ── 2.5. action zone cross marker — one 2×2 dot at the most recent cross ─
+    # ── 2.5. action zone cross markers — 2×2 dot at every EMA12/26 cross ────
     disp_e12 = ema12[-N_CANDLES:]
     disp_e26 = ema26[-N_CANDLES:]
-    cross_i  = None
-    cross_bull = None
+
     for j in range(1, N_CANDLES):
         e12p, e26p = disp_e12[j - 1], disp_e26[j - 1]
         e12c, e26c = disp_e12[j],     disp_e26[j]
         if None in (e12p, e26p, e12c, e26c):
             continue
-        if (e12c > e26c) != (e12p > e26p):
-            cross_i    = j
-            cross_bull = e12c > e26c
-
-    if cross_i is not None:
-        c_cross = ohlcv[-N_CANDLES:][cross_i]
-        x_dot   = start_x + cross_i * SLOT_W
-        if cross_bull:
+        if (e12c > e26c) == (e12p > e26p):
+            continue
+        is_bull = e12c > e26c
+        c_cross = ohlcv[-N_CANDLES:][j]
+        x_dot   = start_x + j * SLOT_W
+        if is_bull:
             y_dot = to_y(c_cross['high']) - 3
             color = C_SPOT_UP
         else:
@@ -177,15 +182,17 @@ def generate(data: dict, output_path: str = '/tmp/btc_chart.png') -> str:
         if cy <= y_dot <= cy + ch:
             draw.rectangle([x_dot, y_dot, x_dot + 1, y_dot + 1], fill=color)
 
-    # ── 3. EMA 200 — indigo dot, every 2nd slot ─────────────────────────────
+    # ── 3. EMA 200 — indigo dot, every 2nd slot (hidden if >5% outside range)
     for i, v in enumerate(ema200[-N_CANDLES:]):
         if v is None or i % 2 != 0:
+            continue
+        if v > ema200_hi_cut or v < ema200_lo_cut:
             continue
         y = to_y(v)
         if cy <= y <= cy + ch:
             draw.point((start_x + i * SLOT_W + 1, y), fill=C_EMA200)
 
-    # ── 4. EMA 12 — amber dot, col 0 of each slot ───────────────────────────
+    # ── 4. EMA 12 ───────────────────────────────────────────────────────────
     for i, v in enumerate(ema12[-N_CANDLES:]):
         if v is None:
             continue
@@ -193,7 +200,7 @@ def generate(data: dict, output_path: str = '/tmp/btc_chart.png') -> str:
         if cy <= y <= cy + ch:
             draw.point((start_x + i * SLOT_W, y), fill=C_EMA12)
 
-    # ── 5. EMA 26 — sky blue dot, col 1 of each slot ────────────────────────
+    # ── 5. EMA 26 ───────────────────────────────────────────────────────────
     for i, v in enumerate(ema26[-N_CANDLES:]):
         if v is None:
             continue
@@ -201,25 +208,25 @@ def generate(data: dict, output_path: str = '/tmp/btc_chart.png') -> str:
         if cy <= y <= cy + ch:
             draw.point((start_x + i * SLOT_W + 1, y), fill=C_EMA26)
 
-    # ── 6. price labels — right side, every 2000 USD ────────────────────────
-    chart_right = cx + cw
-    p_start     = int((pmin // PRICE_STEP + 1) * PRICE_STEP)
+    # ── 6. price labels ──────────────────────────────────────────────────────
+    chart_right  = cx + cw
+    p_start      = int((pmin // PRICE_STEP + 1) * PRICE_STEP)
     last_label_y = -99
 
     for p in range(p_start, int(pmax) + 1, PRICE_STEP):
         y = to_y(p)
         if y < cy + 2 or y > cy + ch - 1:
             continue
-        if abs(y - last_label_y) < 7:
+        if abs(y - last_label_y) < 5 * S + 2:  # min spacing = font height + gap
             continue
         draw.line([(chart_right, y), (chart_right + 2, y)], fill=C_TICK)
         label = f'{round(p / 1000)}K'
-        _draw_px_text(draw, GRID_W - 2, y - 2, label, C_PRICE_LABEL, align='right')
+        _draw_px_text(draw, GRID_W - 2, y - 5, label, C_PRICE_LABEL, align='right')
         last_label_y = y
 
-    # ── 7. month labels — first candle of each month only ───────────────────
-    edge_min = start_x + 8
-    edge_max = start_x + total_w - 8
+    # ── 7. month labels ──────────────────────────────────────────────────────
+    edge_min = start_x + 11
+    edge_max = start_x + total_w - 11
 
     for i, c in enumerate(ohlcv[-N_CANDLES:]):
         ts = c.get('ts')
