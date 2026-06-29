@@ -15,34 +15,44 @@ from generate_chart_btc import generate as generate_chart
 load_dotenv(Path(__file__).parent.parent / '.env')
 
 
-def _post_facebook(img_path: str, caption: str) -> None:
+def _post_facebook(img_path: str, caption: str) -> str:
+    """Returns a status string to report back to Discord."""
     page_id = os.environ.get('FACEBOOK_PAGE_ID')
     token   = os.environ.get('FACEBOOK_PAGE_TOKEN')
     if not page_id or not token:
-        print('Facebook: skipped (no credentials)')
-        return
+        return 'Facebook: skipped (no credentials)'
 
-    # Step 1: upload image as unpublished → no premature feed story
-    with open(img_path, 'rb') as f:
-        r1 = requests.post(
-            f'https://graph.facebook.com/v19.0/{page_id}/photos',
-            data={'published': 'false', 'access_token': token},
-            files={'source': f},
+    try:
+        # Step 1: upload image as unpublished → no premature feed story
+        with open(img_path, 'rb') as f:
+            r1 = requests.post(
+                f'https://graph.facebook.com/v19.0/{page_id}/photos',
+                data={'published': 'false', 'access_token': token},
+                files={'source': f},
+            )
+        r1.raise_for_status()
+        photo_id = r1.json()['id']
+
+        # Step 2: create feed post with photo + caption (JSON body → UTF-8 → emojis work)
+        r2 = requests.post(
+            f'https://graph.facebook.com/v19.0/{page_id}/feed',
+            json={
+                'access_token':   token,
+                'message':        caption,
+                'attached_media': [{'media_fbid': photo_id}],
+            },
         )
-    r1.raise_for_status()
-    photo_id = r1.json()['id']
+        r2.raise_for_status()
+        post_id = r2.json().get('id', '')
+        url = f'https://www.facebook.com/{post_id.replace("_", "/posts/")}'
+        return f'Facebook: posted OK\n{url}'
 
-    # Step 2: create feed post with photo + caption (JSON body → UTF-8 → emojis work)
-    r2 = requests.post(
-        f'https://graph.facebook.com/v19.0/{page_id}/feed',
-        json={
-            'access_token':   token,
-            'message':        caption,
-            'attached_media': [{'media_fbid': photo_id}],
-        },
-    )
-    r2.raise_for_status()
-    print(f'Facebook: posted (id={r2.json().get("id")})')
+    except requests.HTTPError as e:
+        body = e.response.json() if e.response else {}
+        err  = body.get('error', {})
+        return f'Facebook: ERROR {err.get("code")} — {err.get("message", str(e))}'
+    except Exception as e:
+        return f'Facebook: ERROR — {e}'
 
 
 def main() -> None:
@@ -78,7 +88,11 @@ def main() -> None:
             )
         resp.raise_for_status()
 
-    _post_facebook(img_path, discord_message)
+    fb_result = _post_facebook(img_path, discord_message)
+
+    # Report Facebook result back to Discord
+    for url in webhooks:
+        requests.post(url, json={'content': fb_result})
 
     print(f"Posted: {data['date']}")
 
