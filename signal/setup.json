@@ -1,6 +1,7 @@
 [
   {
     "name": "EMA BB Signal",
+    "webhook": "EMA_BB_SIGNAL_WEBHOOK_URL",
     "leverage": 100,
     "percent_risk": 0.03,
     "fee_rate": 0.0005,
@@ -34,6 +35,7 @@
   },
   {
     "name": "EMA BB Signal (Adj)",
+    "webhook": "EMA_BB_SIGNAL_WEBHOOK_URL",
     "leverage": 100,
     "percent_risk": 0.03,
     "fee_rate": 0.0005,
@@ -67,6 +69,38 @@
   },
   {
     "name": "Ichimoku Cloud Breakout",
-    "setups": []
+    "webhook": "ICHIMOKU_SIGNAL_WEBHOOK_URL",
+    "leverage": 5,
+    "percent_risk": 0.03,
+    "fee_rate": 0.0005,
+    "slippage": 0.0005,
+    "setups": [
+      {
+        "name": "ichi_long",
+        "side": "LONG",
+        "key": "ema_200_ratio",
+        "conditions": [
+          ["adx", ">=", 35],
+          ["senkou_ratio", ">", 1],
+          ["tenkan_kijun", ">", 1],
+          ["ema_200_ratio", ">", 1]
+        ],
+        "sl_atr": 4.0,
+        "rr_target": 2.0
+      },
+      {
+        "name": "ichi_short",
+        "side": "SHORT",
+        "key": "ema_200_ratio",
+        "conditions": [
+          ["adx", ">=", 35],
+          ["senkou_ratio", "<", -1],
+          ["tenkan_kijun", "<", 1],
+          ["ema_200_ratio", "<", 1]
+        ],
+        "sl_atr": 4.0,
+        "rr_target": 2.0
+      }
+    ]
   }
 ]

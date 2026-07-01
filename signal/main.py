@@ -26,10 +26,17 @@ CALC_WARMUP = 250
 
 SETUP_JSON = Path(__file__).parent / 'setup.json'
 
+_CALC_COLS = [
+    'datetime', 'open', 'high', 'low', 'close', 'volume',
+    'ema_200', 'ema_200_ratio',
+    'bb_basis', 'bb_upper', 'bb_lower', 'bb_distance', 'bb_ratio',
+    'vol_ratio', 'atr_14',
+    'tenkan', 'kijun', 'senkou_a', 'senkou_b',
+    'senkou_ratio', 'adx', 'tenkan_kijun',
+]
+
 def load_config() -> list:
     return json.loads(SETUP_JSON.read_text())
-
-WEBHOOK = os.getenv('EMA_BB_SIGNAL_WEBHOOK_URL', '')
 
 
 # ── indicators ────────────────────────────────────────────────────────────────
@@ -58,8 +65,36 @@ def compute(df: pd.DataFrame) -> dict:
         df['high'], df['low'], df['close'], window=14
     )
 
+    # Ichimoku (9, 26, 52)
+    ich = ta.trend.IchimokuIndicator(df['high'], df['low'], window1=9, window2=26, window3=52, visual=False)
+    df['tenkan'] = ich.ichimoku_conversion_line()
+    df['kijun']  = ich.ichimoku_base_line()
+    df['ichi_a'] = ich.ichimoku_a()
+    df['ichi_b'] = ich.ichimoku_b()
+
+    # ADX (14)
+    df['adx'] = ta.trend.ADXIndicator(df['high'], df['low'], df['close'], window=14).adx()
+
     last  = df.iloc[-1]
     close = round(float(last['close']), 2)
+
+    def _f(col, decimals=2):
+        v = last.get(col)
+        return round(float(v), decimals) if pd.notna(v) else None
+
+    tenkan_v = _f('tenkan'); kijun_v = _f('kijun')
+    ichi_a_v = _f('ichi_a'); ichi_b_v = _f('ichi_b')
+
+    # senkou_ratio: (close - cloud_mid) / cloud_half  — >1 above cloud, <-1 below cloud
+    if ichi_a_v is not None and ichi_b_v is not None:
+        cloud_mid  = (ichi_a_v + ichi_b_v) / 2
+        cloud_half = abs(ichi_a_v - ichi_b_v) / 2
+        senkou_ratio = round((close - cloud_mid) / cloud_half, 4) if cloud_half > 0 else None
+    else:
+        senkou_ratio = None
+
+    # tenkan_kijun: >1 = tenkan above kijun (bull), <1 = tenkan below kijun (bear)
+    tenkan_kijun = round(tenkan_v / kijun_v, 5) if tenkan_v and kijun_v else None
 
     return {
         'datetime':      str(last['datetime']),
@@ -77,6 +112,13 @@ def compute(df: pd.DataFrame) -> dict:
         'bb_ratio':      round(float(last['bb_ratio']),    4),
         'vol_ratio':     round(float(last['vol_ratio']), 3) if pd.notna(last.get('vol_ratio')) else 0.0,
         'atr_14':        round(float(last['atr_14']), 2) if pd.notna(last.get('atr_14')) else None,
+        'tenkan':        tenkan_v,
+        'kijun':         kijun_v,
+        'senkou_a':      ichi_a_v,
+        'senkou_b':      ichi_b_v,
+        'senkou_ratio':  senkou_ratio,
+        'adx':           _f('adx', 1),
+        'tenkan_kijun':  tenkan_kijun,
     }
 
 
@@ -117,7 +159,7 @@ def fetch_latest_1h(exchange) -> dict:
 
 
 def append_calc_row(row: dict):
-    df_row = pd.DataFrame([row])
+    df_row = pd.DataFrame([{c: row.get(c) for c in _CALC_COLS}])
     df_row.to_csv(CALC_CSV, mode='a', header=False, index=False)
 
 
@@ -130,12 +172,11 @@ OPS = {'==': lambda a, b: a == b, '!=': lambda a, b: a != b,
 
 # ── discord ───────────────────────────────────────────────────────────────────
 
-def send_discord(msg: str):
-    if not WEBHOOK:
-        print('[discord] No webhook configured (EMA_BB_SIGNAL_WEBHOOK_URL)')
+def send_discord(msg: str, url: str):
+    if not url:
         return
     try:
-        r = requests.post(WEBHOOK, json={'content': msg}, timeout=10)
+        r = requests.post(url, json={'content': msg}, timeout=10)
         if r.status_code not in (200, 204):
             print(f'[discord] HTTP {r.status_code}: {r.text[:200]}')
     except Exception as e:
@@ -154,6 +195,15 @@ def _condition_line(col: str, op: str, val, calc_row: dict) -> str:
         return f"  BB    : {ok} {actual:.4f}"
     if col == 'vol_ratio':
         return f"  Vol   : {ok} {actual:.2f}x"
+    if col == 'senkou_ratio':
+        return f"  Cloud : {ok} {actual:.4f}"
+    if col == 'adx':
+        return f"  ADX   : {ok} {actual:.1f}"
+    if col == 'tenkan_kijun':
+        t = calc_row.get('tenkan'); k = calc_row.get('kijun')
+        t_str = f"T${t:,.0f}" if t else ''
+        k_str = f"K${k:,.0f}" if k else ''
+        return f"  TK    : {ok} {actual:.5f}  {t_str} {k_str}"
     return f"  {col} : {actual}  {ok}"
 
 
@@ -181,8 +231,7 @@ def _sl_tp(setup: dict, group: dict, calc_row: dict) -> tuple:
     return sl, tp, -(sl_loss_net * 100), +(tp_gain_net * 100)
 
 
-def build_message(calc_row: dict) -> str:
-    groups = load_config()
+def build_message(calc_row: dict, groups: list) -> str:
     price  = calc_row['close']
     atr    = calc_row['atr_14']
     dt     = (pd.Timestamp(calc_row['datetime']) + pd.Timedelta(hours=1)).strftime('%Y-%m-%d %H:%M')
@@ -263,8 +312,17 @@ def run_once(exchange):
             subprocess.run([sys.executable, Path(__file__).parent / 'seed.py'], check=True)
             calc_row = pd.read_csv(CALC_CSV).query(f'datetime == "{candle_dt}"').iloc[0].to_dict()
 
-        msg = build_message(calc_row)
-        send_discord(msg)
+        # Group setups by webhook env var, send each to its own channel
+        from collections import defaultdict
+        webhook_groups: dict = defaultdict(list)
+        for g in load_config():
+            env_key = g.get('webhook', 'EMA_BB_SIGNAL_WEBHOOK_URL')
+            webhook_groups[env_key].append(g)
+
+        for env_key, groups in webhook_groups.items():
+            url = os.getenv(env_key, '')
+            if url:
+                send_discord(build_message(calc_row, groups), url)
     except Exception as e:
         errors = 1
         print(f'[main] ERROR: {e}')

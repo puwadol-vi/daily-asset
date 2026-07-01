@@ -1,14 +1,15 @@
 #!/usr/bin/env python3
 """
-Seed / recover btc_calc.csv.
+Seed / recover / migrate btc_calc.csv.
 
-  No CSV  → full init from history
-  CSV exists but has gaps → fetch only missing slots and append
+  No CSV        → full init from history
+  Missing cols  → migrate: backfill new indicator columns for all existing rows
+  Gaps in CSV   → fetch only missing slots and append
 
 Labels use the same +1h slot convention as main.py:
   candle that opened at 00:00 ICT → written as slot '01:00'
 
-Usage: venv/bin/python3 ema_bb_signal/seed.py
+Usage: venv/bin/python3 signal/seed.py
 """
 
 from pathlib import Path
@@ -23,6 +24,15 @@ import ta
 RUNTIME_DIR = Path(__file__).parent / 'runtime'
 CALC_CSV    = RUNTIME_DIR / 'btc_calc.csv'
 WARMUP      = 250
+
+_CALC_COLS = [
+    'datetime', 'open', 'high', 'low', 'close', 'volume',
+    'ema_200', 'ema_200_ratio',
+    'bb_basis', 'bb_upper', 'bb_lower', 'bb_distance', 'bb_ratio',
+    'vol_ratio', 'atr_14',
+    'tenkan', 'kijun', 'senkou_a', 'senkou_b',
+    'senkou_ratio', 'adx', 'tenkan_kijun',
+]
 
 
 def _compute(df: pd.DataFrame) -> dict:
@@ -44,8 +54,32 @@ def _compute(df: pd.DataFrame) -> dict:
         df['high'], df['low'], df['close'], window=14
     )
 
+    ich = ta.trend.IchimokuIndicator(df['high'], df['low'], window1=9, window2=26, window3=52, visual=False)
+    df['tenkan']   = ich.ichimoku_conversion_line()
+    df['kijun']    = ich.ichimoku_base_line()
+    df['senkou_a'] = ich.ichimoku_a()
+    df['senkou_b'] = ich.ichimoku_b()
+
+    df['adx'] = ta.trend.ADXIndicator(df['high'], df['low'], df['close'], window=14).adx()
+
     last  = df.iloc[-1]
     close = round(float(last['close']), 2)
+
+    def _f(col, decimals=2):
+        v = last.get(col)
+        return round(float(v), decimals) if pd.notna(v) else None
+
+    tenkan_v = _f('tenkan');   kijun_v  = _f('kijun')
+    ichi_a_v = _f('senkou_a'); ichi_b_v = _f('senkou_b')
+
+    if ichi_a_v is not None and ichi_b_v is not None:
+        cloud_mid    = (ichi_a_v + ichi_b_v) / 2
+        cloud_half   = abs(ichi_a_v - ichi_b_v) / 2
+        senkou_ratio = round((close - cloud_mid) / cloud_half, 4) if cloud_half > 0 else None
+    else:
+        senkou_ratio = None
+
+    tenkan_kijun = round(tenkan_v / kijun_v, 5) if tenkan_v and kijun_v else None
 
     return {
         'datetime':      str(last['datetime']),
@@ -63,6 +97,13 @@ def _compute(df: pd.DataFrame) -> dict:
         'bb_ratio':      round(float(last['bb_ratio']),    4),
         'vol_ratio':     round(float(last['vol_ratio']), 3) if pd.notna(last.get('vol_ratio')) else 0.0,
         'atr_14':        round(float(last['atr_14']), 2) if pd.notna(last.get('atr_14')) else None,
+        'tenkan':        tenkan_v,
+        'kijun':         kijun_v,
+        'senkou_a':      ichi_a_v,
+        'senkou_b':      ichi_b_v,
+        'senkou_ratio':  senkou_ratio,
+        'adx':           _f('adx', 1),
+        'tenkan_kijun':  tenkan_kijun,
     }
 
 
@@ -72,56 +113,82 @@ def _fetch_raw(exchange, limit: int) -> pd.DataFrame:
     df['datetime'] = (
         pd.to_datetime(df['timestamp'], unit='ms') + pd.Timedelta(hours=7)
     ).dt.strftime('%Y-%m-%d %H:%M')
-    return df[:-1].reset_index(drop=True)  # exclude forming + current slot (main.py handles current)
+    return df[:-1].reset_index(drop=True)  # exclude forming candle
 
 
 def init(exchange):
-    print('[seed] No CSV found — full init...')
+    print('[seed] No CSV — full init...')
     df = _fetch_raw(exchange, WARMUP + 10)
     if len(df) < 20:
-        print(f'[seed] Not enough data returned ({len(df)} rows) — aborting')
+        print(f'[seed] Not enough data ({len(df)} rows) — aborting')
         return
     rows = [_compute(df.iloc[:i + 1].copy()) for i in range(20, len(df))]
     RUNTIME_DIR.mkdir(parents=True, exist_ok=True)
-    pd.DataFrame(rows).to_csv(CALC_CSV, index=False)
+    pd.DataFrame(rows)[_CALC_COLS].to_csv(CALC_CSV, index=False)
     print(f'[seed] Wrote {len(rows)} rows → last: {rows[-1]["datetime"]}')
+
+
+def migrate(exchange):
+    """Backfill missing indicator columns for all existing CSV rows."""
+    df_csv = pd.read_csv(CALC_CSV)
+    missing = [c for c in _CALC_COLS if c not in df_csv.columns]
+    if not missing:
+        return
+
+    print(f'[seed] Migrating — backfilling: {missing}')
+    n = len(df_csv)
+    df_raw = _fetch_raw(exchange, WARMUP + n + 10)
+    dt_to_idx = {dt: i for i, dt in enumerate(df_raw['datetime'])}
+
+    patch = {c: [] for c in missing}
+    for dt in df_csv['datetime']:
+        idx = dt_to_idx.get(dt)
+        if idx is None or idx < 20:
+            row = {}
+        else:
+            row = _compute(df_raw.iloc[:idx + 1].copy())
+        for c in missing:
+            patch[c].append(row.get(c))
+
+    for c in missing:
+        df_csv[c] = patch[c]
+
+    df_csv[_CALC_COLS].to_csv(CALC_CSV, index=False)
+    print(f'[seed] Migrated {n} rows')
 
 
 def recover(exchange):
     df_csv  = pd.read_csv(CALC_CSV)
     last_dt = pd.Timestamp(df_csv['datetime'].iloc[-1])
     now_ict = pd.Timestamp.now('UTC').tz_localize(None) + pd.Timedelta(hours=7)
-    # Slots to fill = between last_dt and the slot before the current one
-    # (current slot is always computed by main.py after seed returns)
     missing = int((now_ict.floor('h') - pd.Timedelta(hours=1) - last_dt).total_seconds() / 3600)
 
     if missing <= 0:
-        print(f'[seed] CSV is up to date (last: {last_dt})')
+        print(f'[seed] CSV up to date (last: {last_dt})')
         return
 
     print(f'[seed] {missing} missing slot(s) since {last_dt} — fetching...')
     df_raw = _fetch_raw(exchange, WARMUP + missing + 5)
-
     if len(df_raw) < 20:
-        print(f'[seed] Not enough data returned ({len(df_raw)} rows) — skipping')
+        print(f'[seed] Not enough data ({len(df_raw)} rows) — skipping')
         return
 
     existing_dts = set(df_csv['datetime'])
     new_indices  = [i for i, dt in enumerate(df_raw['datetime'])
                     if dt not in existing_dts and i >= 20]
-
     if not new_indices:
         print('[seed] Nothing new to append')
         return
 
     rows = [_compute(df_raw.iloc[:i + 1].copy()) for i in new_indices]
-    pd.DataFrame(rows).to_csv(CALC_CSV, mode='a', header=False, index=False)
+    pd.DataFrame(rows)[_CALC_COLS].to_csv(CALC_CSV, mode='a', header=False, index=False)
     print(f'[seed] Appended {len(rows)} row(s) → last: {rows[-1]["datetime"]}')
 
 
 if __name__ == '__main__':
     exchange = ccxt.binance({'enableRateLimit': True})
     if CALC_CSV.exists():
+        migrate(exchange)   # no-op if schema is current
         recover(exchange)
     else:
         init(exchange)
