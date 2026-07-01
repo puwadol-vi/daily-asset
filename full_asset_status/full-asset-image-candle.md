@@ -91,7 +91,15 @@ Action Zone (EMA 12/26) · EMA 200 · Asset+date label · Cross markers · Pixel
 
 ---
 
-## 6. Shared Data Flow
+## 6. Cache
+
+Shared cache file at repo root: `../cache.json`
+- `btc.dominance` — BTC dominance direction vs yesterday
+- `price_history` — daily snapshots (close, realized, sth, lth, tmm) for onchain chart
+
+---
+
+## 7. Shared Data Flow
 
 ```
 run_full_btc.py

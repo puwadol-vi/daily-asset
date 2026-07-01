@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BTC Full Asset Status — Plan</title>
+<style>
+:root {
+  --bg:      #0f1117;
+  --surface: #1a1d27;
+  --surface2:#222536;
+  --border:  #2e3148;
+  --text:    #e2e4f0;
+  --muted:   #7b7fa8;
+  --blue:    #3b82f6;
+  --green:   #22c55e;
+  --yellow:  #f59e0b;
+  --red:     #ef4444;
+  --orange:  #f97316;
+  --accent:  #6366f1;
+  --mono:    'SF Mono','Fira Code','Consolas',monospace;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-size: 14px;
+  line-height: 1.6;
+  padding: 40px 24px;
+}
+.wrap { max-width: 1060px; margin: 0 auto; }
+
+h1 { font-size: 24px; font-weight: 700; color: #fff; margin-bottom: 4px; }
+.sub { color: var(--muted); font-size: 13px; margin-bottom: 36px; }
+h2 { font-size: 13px; font-weight: 700; color: var(--accent); text-transform: uppercase;
+     letter-spacing: .08em; margin-bottom: 14px; }
+h3 { font-size: 13px; font-weight: 600; color: #c7c9df; margin-bottom: 10px; }
+
+.section { background: var(--surface); border: 1px solid var(--border);
+           border-radius: 12px; padding: 26px; margin-bottom: 24px; }
+hr { border: none; border-top: 1px solid var(--border); margin: 20px 0; }
+
+/* ── post grid ── */
+.post-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.post-box { background: var(--bg); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
+.post-label { background: var(--surface2); padding: 8px 14px; font-size: 11px;
+              font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; }
+.post-body { padding: 16px; font-family: var(--mono); font-size: 12px; line-height: 1.75;
+             white-space: pre-wrap; color: #c8cbe8; }
+.v   { color: #f472b6; }   /* template variable — pink */
+.ai  { color: #a78bfa; }   /* AI line — purple */
+.hdr { color: #94a3b8; }   /* section header */
+.sig { color: var(--green); font-weight: 600; }
+.red-sig { color: var(--red); font-weight: 600; }
+
+/* ── tables ── */
+table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+th { background: var(--surface2); color: var(--muted); font-weight: 600; text-align: left;
+     padding: 8px 12px; font-size: 11px; text-transform: uppercase; letter-spacing: .05em;
+     border-bottom: 1px solid var(--border); }
+td { padding: 8px 12px; border-bottom: 1px solid #1e2133; vertical-align: top; }
+tr:last-child td { border-bottom: none; }
+tr:hover td { background: var(--surface2); }
+td:first-child { font-weight: 600; white-space: nowrap; }
+
+/* threshold cells */
+.c-b { color: var(--blue);   font-weight: 600; }
+.c-g { color: var(--green);  font-weight: 600; }
+.c-y { color: var(--yellow); font-weight: 600; }
+.c-r { color: var(--red);    font-weight: 600; }
+.c-o { color: var(--orange); font-weight: 600; }
+
+/* description table */
+.desc-table td:first-child { color: #a5b4fc; width: 120px; }
+.desc-table td:last-child  { color: var(--muted); font-size: 12px; }
+
+/* images table */
+.img-table td:nth-child(2) { color: #a5b4fc; }
+
+footer { text-align: center; color: var(--muted); font-size: 11px; padding: 24px 0 8px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<h1>📊 BTC Full Asset Status — Plan</h1>
+<p class="sub">Layout · Thresholds · Images · AI Read &nbsp;·&nbsp; <span style="color:var(--accent)">Pink = template variable</span> &nbsp;·&nbsp; <span style="color:#a78bfa">Purple = AI-generated</span></p>
+
+<!-- ══════════════════════════════════════════════════════ SECTION 1 -->
+<div class="section">
+  <h2>Post Layout</h2>
+  <div class="post-grid">
+
+    <!-- DAILY -->
+    <div>
+      <h3 style="margin-bottom:10px;">Daily (Tue – Sun)</h3>
+      <div class="post-box">
+        <div class="post-label">Format</div>
+        <div class="post-body"><span class="hdr">📊 BTC Daily Status — </span><span class="v">@{DD Mon YYYY}</span>
+
+<span class="v">[🟢/🔴]</span> BTC · $<span class="v">[PRICE]</span>  (<span class="v">[+/-X.XX%]</span>)
+
+<span class="hdr">📈 Technical</span>
+• EMA 200: <span class="v">[🟢/🔴]</span>  ·  RSI: <span class="v">[X.X] [🔵/🟢/🟡/🔴]</span>  ·  Action Zone: <span class="v">[🟢/🔴]</span>
+
+<span class="hdr">⛓️ Onchain</span>
+Realized $<span class="v">[V]</span>  ·  STH $<span class="v">[V]</span>  ·  LTH $<span class="v">[V]</span>  |  TMM $<span class="v">[V]</span>
+MVRV <span class="v">[V] [🔵/🟢/🟡/🔴]</span>  ·  STH <span class="v">[V]</span>  ·  LTH <span class="v">[V]</span>  |  Z-SCORE <span class="v">[V] [🔵/🟢/🟡/🔴]</span>
+
+🔗 Signal guide & emoji meanings link pinned in the comments below!</div>
+      </div>
+    </div>
+
+    <!-- WEEKLY -->
+    <div>
+      <h3 style="margin-bottom:10px;">Weekly (Monday)</h3>
+      <div class="post-box">
+        <div class="post-label">Format</div>
+        <div class="post-body"><span class="hdr">📊 BTC Weekly Status — </span><span class="v">@{DD Mon YYYY} ({DD Mon} - {DD Mon})</span>
+
+<span class="v">[🟢/🔴]</span> BTC · $<span class="v">[PRICE]</span>  (<span class="v">[+/-X.XX%]</span> 7d)
+
+<span class="hdr">📈 Technical</span>
+• EMA 200: <span class="v">[🟢/🔴]</span>  ·  ADX: <span class="v">[X.X] [🟢/🔴]</span>  ·  RSI: <span class="v">[X.X] [🔵/🟢/🟡/🔴]</span>
+• Action Zone: <span class="v">[🟢/🔴]</span> $<span class="v">[CROSS PRICE]</span> (<span class="v">[N]</span> days ago)
+• Key Levels: R $<span class="v">[RESISTANCE]</span>  ·  S $<span class="v">[SUPPORT]</span>
+• BOS: <span class="v">[status]</span>
+
+<span class="hdr">⛓️ Onchain</span>
+Realized $<span class="v">[V]</span>  ·  STH $<span class="v">[V]</span>  ·  LTH $<span class="v">[V]</span>  |  TMM $<span class="v">[V]</span>
+NUPL <span class="v">[V] [🔵/🟢/🟡/🔴]</span>  ·  Supply Profit <span class="v">[X%]</span>
+<span class="ai">✨ [AI: 1-line insight on Realized / TMM / NUPL / Supply Profit]</span>
+MVRV <span class="v">[V] [🔵/🟢/🟡/🔴]</span>  ·  STH <span class="v">[V]</span>  ·  LTH <span class="v">[V]</span>  |  Z-SCORE <span class="v">[V] [🔵/🟢/🟡/🔴]</span>
+SOPR  ·  STH <span class="v">[V]</span>  ·  LTH <span class="v">[V]</span>
+<span class="ai">✨ [AI: 1-line insight on MVRV / Z-SCORE / SOPR]</span>
+F&G: <span class="v">[VALUE] [🔴/🟠/🟡/🟢/🟢]</span>  · Dom: <span class="v">[X.X%]</span>
+
+<span class="hdr">🌊 Elliott Wave</span>
+<span class="ai">✨ [AI: 1-line insight describe the elliot wave]</span>
+<span class="hdr">〽️ Wave Patterns</span>
+<span class="ai">✨ [AI: 1-line insight describe the wave pattern]</span>
+
+🔗 Signal guide & emoji meanings link pinned in the comments below!
+<span class="ai">✨ = AI-generated insight</span></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════ SECTION 2 -->
+<div class="section">
+  <h2>Per-Metric Thresholds</h2>
+
+  <h3>Technical</h3>
+  <table style="margin-bottom:22px;">
+    <thead><tr><th>Metric</th><th>Condition 1</th><th>Condition 2</th><th>Condition 3</th><th>Condition 4</th></tr></thead>
+    <tbody>
+      <tr><td>EMA 200</td>    <td class="c-r">🔴 Price below EMA 200</td>         <td class="c-g">🟢 Price above EMA 200</td>      <td></td><td></td></tr>
+      <tr><td>ADX (14)</td>   <td class="c-r">🔴 ≤ 20 (ranging)</td>              <td class="c-g">🟢 > 20 (trending)</td>           <td></td><td></td></tr>
+      <tr><td>RSI</td>        <td class="c-b">🔵 &lt; 30 (oversold)</td>          <td class="c-g">🟢 30 – 70</td>                   <td class="c-y">🟡 70 – 80</td><td class="c-r">🔴 > 80 (overbought)</td></tr>
+      <tr><td>Action Zone</td><td class="c-r">🔴 EMA12 below EMA26 (bear)</td>    <td class="c-g">🟢 EMA12 above EMA26 (bull)</td>  <td></td><td></td></tr>
+      <tr><td>BOS</td>        <td style="color:#ef4444">BOS confirmed (structure broken)</td><td style="color:#f59e0b">LH forming (first warning)</td><td style="color:#22c55e">HH/HL intact</td><td></td></tr>
+    </tbody>
+  </table>
+
+  <hr>
+  <h3>Onchain — Thresholds</h3>
+  <table style="margin-bottom:22px;">
+    <thead><tr><th>Metric</th><th>🔵</th><th>🟢</th><th>🟡</th><th>🔴</th><th>extra</th></tr></thead>
+    <tbody>
+      <tr><td>NUPL</td>        <td class="c-b">&lt; 0 (loss)</td>      <td class="c-g">0 – 0.5</td>       <td class="c-y">0.5 – 0.75</td>    <td class="c-r">&gt; 0.75 (euphoria)</td><td></td></tr>
+      <tr><td>MVRV</td>        <td class="c-b">ADD &lt; 1.0</td>       <td class="c-g">HOLD 1.0 – 2.0</td><td class="c-y">WARN 2.0 – 3.5</td><td class="c-r">EXIT &gt; 3.5</td><td></td></tr>
+      <tr><td>MVRV Z-SCORE</td><td class="c-b">&lt; 0</td>             <td class="c-g">0 – 4</td>         <td class="c-y">4 – 7</td>         <td class="c-r">&gt; 7</td><td></td></tr>
+      <tr><td>F&amp;G</td>     <td class="c-r">🔴 0–24 Extreme Fear</td><td class="c-o">🟠 25–44 Fear</td><td class="c-y">🟡 45–55 Neutral</td><td class="c-g">🟢 56–74 Greed</td><td class="c-g">🟢 75–100 Extreme Greed</td></tr>
+    </tbody>
+  </table>
+
+  <hr>
+  <h3>Onchain — Descriptions</h3>
+  <table class="desc-table">
+    <thead><tr><th>Metric</th><th>What it measures</th></tr></thead>
+    <tbody>
+      <tr><td>Realized</td>     <td>Global avg cost basis of all BTC (price when each coin last moved). Price above = market in profit. Price below = historically rare undervaluation.</td></tr>
+      <tr><td>Realized STH</td> <td>Cost basis of short-term holders (coins moved &lt; 155 days ago). Acts as key support when price is above it, resistance when below.</td></tr>
+      <tr><td>Realized LTH</td> <td>Cost basis of long-term holders (coins held &gt; 155 days). Very stable floor — rarely breached even in deep bear markets.</td></tr>
+      <tr><td>TMM</td>          <td>True Market Mean — volume-weighted avg of all on-chain transaction prices. Mid-cycle fair value reference between Realized and current price.</td></tr>
+      <tr><td>NUPL</td>         <td>Net Unrealized Profit/Loss. How much of the network is sitting on paper gains.</td></tr>
+      <tr><td>Supply Profit</td><td>% of circulating supply currently at a profit (cost basis below current price). High % = late cycle risk.</td></tr>
+      <tr><td>MVRV</td>         <td>Market Value vs Realized Value. How over/undervalued relative to network cost basis.</td></tr>
+      <tr><td>MVRV STH</td>     <td>MVRV for short-term holders only. &lt; 1 = STH underwater — often signals capitulation or bounce.</td></tr>
+      <tr><td>MVRV LTH</td>     <td>MVRV for long-term holders. Rises sharply near cycle tops as LTH unrealized gains peak.</td></tr>
+      <tr><td>MVRV Z-SCORE</td> <td>Standardized MVRV using historical std dev — removes cyclical noise.</td></tr>
+      <tr><td>SOPR STH</td>     <td>Sell price ÷ buy price for STH coins spent. &lt; 1 = STH selling at a loss (capitulation signal).</td></tr>
+      <tr><td>SOPR LTH</td>     <td>Same ratio for LTH coins spent. &lt; 1 is rare — signals extreme bear / LTH capitulation.</td></tr>
+      <tr><td>F&amp;G</td>      <td>Market-wide sentiment index (0–100) from alternative.me. Contrarian signal at extremes.</td></tr>
+      <tr><td>Dom</td>          <td>BTC % of total crypto market cap. Direction only — no fixed threshold. ↑ rising = BTC outperforming alts (risk-off). ↓ falling = altseason.</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- ══════════════════════════════════════════════════════ SECTION 3 -->
+<div class="section">
+  <h2>Images (Weekly only)</h2>
+  <table class="img-table" style="margin-bottom:0;">
+    <thead><tr><th>#</th><th>Name</th><th>Description</th></tr></thead>
+    <tbody>
+      <tr><td>1</td><td>Action Zone</td><td>Candlestick chart with EMA 200/12/26 + Action Zone · 120 candles · 1200×630 px pixel art</td></tr>
+      <tr><td>2</td><td>Onchain</td><td>Line chart: Close price · Realized · STH · LTH · TMM · 120 days · 1200×630 px pixel art</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- ══════════════════════════════════════════════════════ SECTION 4 -->
+<div class="section">
+  <h2>AI Read (Weekly only)</h2>
+  <p style="color:var(--muted);margin-bottom:14px;">Claude (<code style="color:#a5b4fc">claude-opus-4-7</code>) receives the last 120 daily candles (OHLCV) and relevant metrics, and outputs 4 lines:</p>
+  <div style="background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:16px;font-family:var(--mono);font-size:12.5px;line-height:1.8;">
+    <span style="color:var(--muted)">Read1:</span> <span class="ai">[1-line insight on Realized / TMM / NUPL / Supply Profit]</span><br>
+    <span style="color:var(--muted)">Read2:</span> <span class="ai">[1-line insight on MVRV / Z-SCORE / SOPR]</span><br>
+    <span style="color:var(--muted)">Wave: </span> <span class="ai">[Elliott Wave call] · [1-line context]</span><br>
+    <span style="color:var(--muted)">Pattern:</span> <span class="ai">[chart pattern] · [brief note]</span>
+  </div>
+</div>
+
+<footer>BTC Full Asset Status · Not financial advice</footer>
+</div>
+</body>
+</html>
