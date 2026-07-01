@@ -91,7 +91,6 @@ def current_candle_datetime() -> str:
     return (now - pd.Timedelta(hours=1)).floor('h').strftime('%Y-%m-%d %H:%M')
 
 
-
 def csv_gap(candle_dt: str) -> int | None:
     """Hours between last CSV row and candle_dt. None = no CSV. 0 = already computed."""
     if not CALC_CSV.exists():
