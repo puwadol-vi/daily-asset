@@ -1,4 +1,4 @@
-import json
+import csv
 import os
 import numpy as np
 import pandas as pd
@@ -7,24 +7,29 @@ import requests
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
 
-DIR = Path(__file__).parent
+DIR           = Path(__file__).parent
+ONCHAIN_CACHE = DIR / 'onchain_chart_cache.csv'
+_CSV_FIELDS   = ['date', 'open', 'high', 'low', 'close', 'realized', 'sth', 'lth', 'tmm',
+                 'ema200', 'ema12', 'ema26']
+_NUMERIC      = ('open', 'high', 'low', 'close', 'realized', 'sth', 'lth', 'tmm',
+                 'ema200', 'ema12', 'ema26')
 
 
-def _fetch_ohlcv(limit: int = 250) -> list:
+def _fetch_ohlcv(limit: int = 3) -> list:
     import ccxt
     exchange = ccxt.binance({'enableRateLimit': True})
     return exchange.fetch_ohlcv('BTC/USDT', '1d', limit=limit)
 
 
-def _coinmetrics() -> dict:
-    """MVRV + exchange reserve/flows from CoinMetrics community (free, no key)."""
+def _coinmetrics_mvrv() -> float:
+    """Latest MVRV from CoinMetrics community API (free, no key)."""
     start = (datetime.now(timezone.utc) - timedelta(days=2)).strftime('%Y-%m-%d')
     end   = (datetime.now(timezone.utc) - timedelta(days=1)).strftime('%Y-%m-%d')
     r = requests.get(
         'https://community-api.coinmetrics.io/v4/timeseries/asset-metrics',
         params={
             'assets':     'btc',
-            'metrics':    'CapMVRVCur,SplyExNtv,FlowInExNtv,FlowOutExNtv',
+            'metrics':    'CapMVRVCur',
             'start_time': start,
             'end_time':   end,
             'frequency':  '1d',
@@ -32,21 +37,9 @@ def _coinmetrics() -> dict:
         timeout=20,
     )
     r.raise_for_status()
-    rows   = r.json()['data']
-    latest = rows[-1]
-    prev   = rows[-2] if len(rows) > 1 else rows[-1]
-
-    def _f(row, key):
-        v = row.get(key)
-        return float(v) if v is not None else 0.0
-
-    return {
-        'mvrv':         _f(latest, 'CapMVRVCur'),
-        'sply_ex':      _f(latest, 'SplyExNtv'),
-        'sply_ex_prev': _f(prev,   'SplyExNtv'),
-        'flow_in':      _f(latest, 'FlowInExNtv'),
-        'flow_out':     _f(latest, 'FlowOutExNtv'),
-    }
+    rows = r.json()['data']
+    v    = rows[-1].get('CapMVRVCur')
+    return float(v) if v is not None else 0.0
 
 
 def _fear_greed() -> tuple[int, str]:
@@ -61,6 +54,7 @@ def _btc_monitor(token: str | None) -> dict:
     _empty = {
         'realized_price_sth':   None,
         'realized_price_lth':   None,
+        'true_market_mean':     None,
         'mvrv_sth':             None,
         'mvrv_lth':             None,
         'mvrv_z_score':         None,
@@ -101,25 +95,28 @@ def _btc_dominance() -> float:
     return float(r.json()['data']['market_cap_percentage']['btc'])
 
 
-def _action_zone(ema12: pd.Series, ema26: pd.Series, close: pd.Series, ts: pd.Series):
-    diff  = ema12 - ema26
-    valid = diff.dropna()
-    signs = np.sign(valid.values)
-    changes = np.where(np.diff(signs) != 0)[0]
+def _action_zone_from_cache(history: list, ema12_today: float, ema26_today: float,
+                             close_today: float) -> tuple:
+    """Find last EMA12/26 crossover from cached series + today's computed values."""
+    e12s = [e.get('ema12') for e in history] + [ema12_today]
+    e26s = [e.get('ema26') for e in history] + [ema26_today]
+    cls  = [e.get('close') for e in history] + [close_today]
 
-    if len(changes) == 0:
-        zone = 'bullish' if float(diff.iloc[-1]) > 0 else 'bearish'
-        return zone, float(close.iloc[-1]), 'unknown', 0
+    n = len(e12s)
+    for i in range(n - 1, 0, -1):
+        e12c, e26c = e12s[i],   e26s[i]
+        e12p, e26p = e12s[i-1], e26s[i-1]
+        if None in (e12c, e26c, e12p, e26p):
+            continue
+        if (e12c > e26c) != (e12p > e26p):
+            zone        = 'bullish' if e12c > e26c else 'bearish'
+            cross_price = cls[i] if cls[i] is not None else close_today
+            return zone, round(cross_price, 2), n - 1 - i
 
-    cross_pos   = int(changes[-1]) + 1
-    cross_orig  = int(valid.index[cross_pos])
-    zone        = 'bullish' if valid.iloc[cross_pos] > 0 else 'bearish'
-    cross_price = float(close.iloc[cross_orig])
-    days        = len(close) - 1 - cross_orig
-    cross_date  = datetime.fromtimestamp(
-        int(ts.iloc[cross_orig]) / 1000, tz=timezone.utc
-    ).strftime('%b %d, %Y')
-    return zone, cross_price, cross_date, days
+    last_e12 = next((v for v in reversed(e12s) if v is not None), None)
+    last_e26 = next((v for v in reversed(e26s) if v is not None), None)
+    zone = 'bullish' if (last_e12 and last_e26 and last_e12 > last_e26) else 'bearish'
+    return zone, round(close_today, 2), 0
 
 
 def _pivot_sr(close: pd.Series, price: float):
@@ -155,132 +152,184 @@ def _bos(close: pd.Series) -> str:
     return f'HH/HL intact — {n_hh} consecutive HHs, no warning'
 
 
-def fetch_all() -> dict:
-    raw = _fetch_ohlcv(350)  # 200 warmup + 120 chart + buffer for complete EMA200
-    df  = pd.DataFrame(raw, columns=['ts', 'open', 'high', 'low', 'close', 'volume'])
-    close, high, low = df['close'], df['high'], df['low']
+# ── Cache I/O ─────────────────────────────────────────────────────────────────
 
-    ema200 = ta.ema(close, 200)
-    ema12  = ta.ema(close, 12)
-    ema26  = ta.ema(close, 26)
-    adx_df = ta.adx(high, low, close, 14)
-    rsi_s  = ta.rsi(close, 14)
+def _read_csv() -> list:
+    if not ONCHAIN_CACHE.exists():
+        return []
+    with ONCHAIN_CACHE.open(newline='') as f:
+        rows = list(csv.DictReader(f))
+    result = []
+    for row in rows:
+        entry = {'date': row['date']}
+        for k in _NUMERIC:
+            v = row.get(k, '')
+            entry[k] = float(v) if v else None
+        result.append(entry)
+    return result
 
-    # Daily open = fixed reference price, doesn't drift during the day
-    price_now    = float(df['open'].iloc[-1])
-    price_prev   = float(df['open'].iloc[-2])
-    change_24h   = (price_now / price_prev - 1) * 100
-    change_7d    = (price_now / float(df['open'].iloc[-8]) - 1) * 100
 
-    action_zone, cross_price, cross_date, action_days = _action_zone(
-        ema12, ema26, close, df['ts']
-    )
-    resistance, support = _pivot_sr(close, price_now)
-    bos_status          = _bos(close)
+def _write_csv(history: list) -> None:
+    with ONCHAIN_CACHE.open('w', newline='') as f:
+        w = csv.DictWriter(f, fieldnames=_CSV_FIELDS)
+        w.writeheader()
+        for row in history:
+            w.writerow({k: ('' if row.get(k) is None else row.get(k)) for k in _CSV_FIELDS})
 
-    # CoinMetrics community: MVRV + exchange reserve/flows
+
+def cache_price_snapshot(data: dict) -> None:
+    """Append today's entry to onchain_chart_cache.csv (rolling 120)."""
+    history = _read_csv()
+
     try:
-        cm       = _coinmetrics()
-        mvrv     = cm['mvrv']
-        sply_ex  = cm['sply_ex']
-        flow_in  = cm['flow_in']
-        flow_out = cm['flow_out']
-        ex_trend = 'rising' if sply_ex > cm['sply_ex_prev'] else 'declining'
+        iso_date = datetime.strptime(data['date'], '%b %d, %Y').strftime('%Y-%m-%d')
     except Exception:
-        mvrv     = 0.0
-        sply_ex  = 0.0
-        flow_in  = 0.0
-        flow_out = 0.0
-        ex_trend = 'declining'
+        iso_date = datetime.now(timezone.utc).strftime('%Y-%m-%d')
 
-    # Derived exactly from MVRV: Price / MVRV = Realized Price; 1 - 1/MVRV = NUPL
+    history = [e for e in history if e.get('date') != iso_date]
+    history.append({
+        'date':     iso_date,
+        'open':     data.get('_open'),
+        'high':     data.get('_high'),
+        'low':      data.get('_low'),
+        'close':    data.get('_close'),
+        'realized': data.get('realized_price'),
+        'sth':      data.get('realized_price_sth'),
+        'lth':      data.get('realized_price_lth'),
+        'tmm':      data.get('true_market_mean'),
+        'ema200':   data.get('ema200'),
+        'ema12':    data.get('_ema12'),
+        'ema26':    data.get('_ema26'),
+    })
+    history.sort(key=lambda e: e.get('date', ''))
+    _write_csv(history[-120:])
+
+
+def load_price_history() -> list:
+    """Load last 120 entries from onchain_chart_cache.csv."""
+    return _read_csv()[-120:]
+
+
+# ── Main fetch ────────────────────────────────────────────────────────────────
+
+def fetch_all() -> dict:
+    """Fetch today's candle only; use CSV cache for all historical computation."""
+    history = load_price_history()
+
+    # ── 1. Fetch today's candle from Binance ──────────────────────────────────
+    raw        = _fetch_ohlcv(3)
+    ts_today   = int(raw[-1][0])
+    open_today = float(raw[-1][1])
+    high_today = float(raw[-1][2])
+    low_today  = float(raw[-1][3])
+    close_today = float(raw[-1][4])
+
+    # Reference price = daily open (stable, doesn't drift intraday)
+    price_now = open_today
+
+    # Changes from cached open prices
+    price_prev   = history[-1]['open']  if history                else price_now
+    price_7d_ago = history[-7]['open']  if len(history) >= 7      else price_now
+    change_24h   = (price_now / price_prev   - 1) * 100 if price_prev   else 0.0
+    change_7d    = (price_now / price_7d_ago - 1) * 100 if price_7d_ago else 0.0
+
+    # ── 2. EMAs: incremental from last cached value ───────────────────────────
+    k200 = 2 / 201
+    k12  = 2 / 13
+    k26  = 2 / 27
+    prev200 = next((e['ema200'] for e in reversed(history) if e.get('ema200')), close_today)
+    prev12  = next((e['ema12']  for e in reversed(history) if e.get('ema12')),  close_today)
+    prev26  = next((e['ema26']  for e in reversed(history) if e.get('ema26')),  close_today)
+    ema200 = round(close_today * k200 + prev200 * (1 - k200), 2)
+    ema12  = round(close_today * k12  + prev12  * (1 - k12),  2)
+    ema26  = round(close_today * k26  + prev26  * (1 - k26),  2)
+
+    # ── 3. Technical indicators from cache closes ─────────────────────────────
+    cache_closes = [e['close'] for e in history if e.get('close') is not None]
+    cache_highs  = [e['high']  for e in history if e.get('high')  is not None]
+    cache_lows   = [e['low']   for e in history if e.get('low')   is not None]
+
+    all_closes = pd.Series(cache_closes + [close_today])
+    all_highs  = pd.Series(cache_highs  + [high_today])
+    all_lows   = pd.Series(cache_lows   + [low_today])
+
+    rsi_val = float(ta.rsi(all_closes, 14).iloc[-1])
+    adx_df  = ta.adx(all_highs, all_lows, all_closes, 14)
+    adx_col = next(c for c in adx_df.columns if c.startswith('ADX_'))
+    adx_val = float(adx_df[adx_col].iloc[-1])
+
+    action_zone, cross_price, action_days = _action_zone_from_cache(
+        history, ema12, ema26, close_today
+    )
+    resistance, support = _pivot_sr(all_closes, price_now)
+    bos_status          = _bos(all_closes)
+
+    # ── 4. Onchain APIs ───────────────────────────────────────────────────────
+    try:
+        mvrv = _coinmetrics_mvrv()
+    except Exception:
+        mvrv = 0.0
+
     realized_price = price_now / mvrv if mvrv else 0.0
     nupl           = 1 - 1 / mvrv    if mvrv else 0.0
-    net_flow       = flow_in - flow_out  # negative = net outflow = bullish
 
-    fg_value, fg_label = _fear_greed()
+    fg_value, _ = _fear_greed()
 
     try:
         bm = _btc_monitor(os.environ.get('BTC_MONITOR_TOKEN'))
     except Exception:
-        bm = {
-            'realized_price_sth': None, 'realized_price_lth': None,
-            'true_market_mean': None,
-            'mvrv_sth': None, 'mvrv_lth': None,
-            'mvrv_z_score': None,
-            'sopr_sth': None, 'sopr_lth': None,
-            'supply_in_profit_pct': None,
-        }
+        bm = {k: None for k in ['realized_price_sth', 'realized_price_lth', 'true_market_mean',
+                                 'mvrv_sth', 'mvrv_lth', 'mvrv_z_score',
+                                 'sopr_sth', 'sopr_lth', 'supply_in_profit_pct']}
 
-    # BTC dominance direction vs yesterday (cached under "btc" key)
-    cache_path = DIR / 'cache.json'
-    cache      = json.loads(cache_path.read_text()) if cache_path.exists() else {}
-    btc_cache  = cache.setdefault('btc', {})
-    dom_today  = _btc_dominance()
-    dom_prev   = btc_cache.get('dominance', {}).get('value', dom_today)
-    btc_dom_dir = '↑' if dom_today >= dom_prev else '↓'
-    btc_cache['dominance'] = {
-        'value':   round(dom_today, 2),
-        'updated': datetime.now(timezone.utc).strftime('%Y-%m-%d'),
-    }
-    cache_path.write_text(json.dumps(cache, indent=2))
+    dom_today = _btc_dominance()
 
-    tail120        = df.tail(120)
-    ohlcv_last_120 = [
-        {'open': float(r.open), 'high': float(r.high),
-         'low': float(r.low), 'close': float(r.close), 'ts': int(r.ts)}
-        for r in tail120.itertuples()
-    ]
-    ema200_series = [float(v) if pd.notna(v) else None for v in ema200.tail(120)]
-    ema12_series  = [float(v) if pd.notna(v) else None for v in ema12.tail(120)]
-    ema26_series  = [float(v) if pd.notna(v) else None for v in ema26.tail(120)]
-
-    adx_col = next(c for c in adx_df.columns if c.startswith('ADX_'))
-    adx_val = float(adx_df[adx_col].iloc[-1])
-
-    candle_date = datetime.fromtimestamp(
-        int(df['ts'].iloc[-1]) / 1000, tz=timezone.utc
-    ).strftime('%b %d, %Y')
+    candle_date = datetime.fromtimestamp(ts_today / 1000, tz=timezone.utc).strftime('%b %d, %Y')
 
     return {
         'date':                   candle_date,
         'price':                  round(price_now, 2),
         'change_24h':             round(change_24h, 2),
         'change_7d':              round(change_7d, 2),
-        'ema200':                 round(float(ema200.iloc[-1]), 2),
-        'above_ema200':           price_now > float(ema200.iloc[-1]),
+        'ema200':                 ema200,
+        'above_ema200':           price_now > ema200,
         'adx':                    round(adx_val, 1),
         'adx_trending':           adx_val > 20,
-        'rsi':                    round(float(rsi_s.iloc[-1]), 1),
+        'rsi':                    round(rsi_val, 1),
         'action_zone':            action_zone,
-        'action_cross_price':     round(cross_price, 2),
-        'action_cross_date':      cross_date,
+        'action_cross_price':     cross_price,
         'action_days':            action_days,
         'resistance':             round(resistance, 2) if resistance else None,
-        'support':                round(support, 2) if support else None,
+        'support':                round(support, 2)    if support    else None,
         'bos_status':             bos_status,
         'mvrv':                   round(mvrv, 2),
         'realized_price':         round(realized_price, 2),
         'nupl':                   round(nupl, 2),
         'fg_value':               fg_value,
-        'fg_label':               fg_label,
         'btc_dominance':          round(dom_today, 1),
-        'btc_dom_direction':      btc_dom_dir,
-        'exchange_reserve':       sply_ex,
-        'exchange_reserve_trend': ex_trend,
-        'exchange_net_flow':      net_flow,
-        'ohlcv_last_120':         ohlcv_last_120,
-        'ema200_series':          ema200_series,
-        'ema12_series':           ema12_series,
-        'ema26_series':           ema26_series,
+        # for cache_price_snapshot
+        '_open':   open_today,
+        '_high':   high_today,
+        '_low':    low_today,
+        '_close':  close_today,
+        '_ema12':  ema12,
+        '_ema26':  ema26,
+        # for AI (weekly)
+        'ohlcv_last_120': (
+            [{'open': e['open'], 'high': e['high'], 'low': e['low'],
+              'close': e['close'], 'date': e['date']}
+             for e in history]
+            + [{'open': open_today, 'high': high_today, 'low': low_today,
+                'close': close_today, 'date': candle_date}]
+        )[-120:],
         # btc.kaetkung.uk onchain
-        'realized_price_sth':     bm['realized_price_sth'],
-        'realized_price_lth':     bm['realized_price_lth'],
-        'true_market_mean':       bm['true_market_mean'],
-        'mvrv_sth':               bm['mvrv_sth'],
-        'mvrv_lth':               bm['mvrv_lth'],
-        'mvrv_z_score':           bm['mvrv_z_score'],
-        'sopr_sth':               bm['sopr_sth'],
-        'sopr_lth':               bm['sopr_lth'],
-        'supply_in_profit_pct':   bm['supply_in_profit_pct'],
+        'realized_price_sth':   bm['realized_price_sth'],
+        'realized_price_lth':   bm['realized_price_lth'],
+        'true_market_mean':     bm['true_market_mean'],
+        'mvrv_sth':             bm['mvrv_sth'],
+        'mvrv_lth':             bm['mvrv_lth'],
+        'mvrv_z_score':         bm['mvrv_z_score'],
+        'sopr_sth':             bm['sopr_sth'],
+        'sopr_lth':             bm['sopr_lth'],
+        'supply_in_profit_pct': bm['supply_in_profit_pct'],
     }

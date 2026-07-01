@@ -13,6 +13,7 @@ cron.log
 *.pyo
 venv/
 **/cache.json
+full_asset_status/onchain_chart_cache.csv
 
 .DS_Store
 proxy/

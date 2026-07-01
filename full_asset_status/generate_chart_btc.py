@@ -1,8 +1,8 @@
 from PIL import Image, ImageDraw
 from datetime import datetime, timezone
 
-GRID_W, GRID_H = 400, 210
-SCALE = 3  # → 1200 × 630
+GRID_W, GRID_H = 400, 200
+SCALE = 3  # → 1200 × 600
 
 C_BG          = (13,  13,  13)
 C_UP          = (247, 147, 26)
@@ -52,6 +52,8 @@ FONT_3X5 = {
     'E': [0b111, 0b100, 0b110, 0b100, 0b111],
     'F': [0b111, 0b100, 0b110, 0b100, 0b100],
     'G': [0b011, 0b100, 0b101, 0b101, 0b011],
+    'H': [0b101, 0b101, 0b111, 0b101, 0b101],
+    'I': [0b111, 0b010, 0b010, 0b010, 0b111],
     'J': [0b011, 0b001, 0b001, 0b101, 0b010],
     'K': [0b101, 0b101, 0b110, 0b101, 0b101],
     'L': [0b100, 0b100, 0b100, 0b100, 0b111],
@@ -95,11 +97,11 @@ def _draw_px_text(draw: ImageDraw.Draw, x: int, y: int,
         cx += (3 + 1) * S
 
 
-def generate(data: dict, output_path: str = '/tmp/btc_chart.png') -> str:
-    ohlcv  = data['ohlcv_last_120']
-    ema200 = data['ema200_series']
-    ema12  = data['ema12_series']
-    ema26  = data['ema26_series']
+def generate(history: list, output_path: str = '/tmp/btc_chart.png') -> str:
+    ohlcv  = history
+    ema200 = [e.get('ema200') for e in history]
+    ema12  = [e.get('ema12')  for e in history]
+    ema26  = [e.get('ema26')  for e in history]
 
     img  = Image.new('RGB', (GRID_W, GRID_H), C_BG)
     draw = ImageDraw.Draw(img)
@@ -107,24 +109,28 @@ def generate(data: dict, output_path: str = '/tmp/btc_chart.png') -> str:
     cx = MARGIN_LEFT
     cy = MARGIN_TOP
     cw = GRID_W - MARGIN_LEFT - MARGIN_RIGHT   # 360
-    ch = GRID_H - MARGIN_TOP  - MARGIN_BOTTOM  # 168
+    ch = GRID_H - MARGIN_TOP  - MARGIN_BOTTOM  # 158
 
     # ── 0. header: date label (left) + EMA200 indicator (right) ─────────────
-    last_ts  = ohlcv[-1].get('ts', 0)
-    last_dt  = datetime.fromtimestamp(last_ts / 1000, tz=timezone.utc)
-    lbl_text = 'BTC ' + last_dt.strftime('%d%b%Y').upper()
+    last_date = history[-1].get('date', '') if history else ''
+    try:
+        last_dt  = datetime.strptime(last_date, '%b %d, %Y') if ',' in last_date \
+                   else datetime.strptime(last_date, '%Y-%m-%d')
+        lbl_text = 'BTC ' + last_dt.strftime('%d%b%Y').upper()
+    except Exception:
+        lbl_text = 'BTC'
     _draw_px_text(draw, cx + 1, 2, lbl_text, C_PRICE_LABEL, align='left')
     _draw_px_text(draw, cx + cw - 1, 2, 'EMA 200', C_EMA200, align='right')
 
     # price scale — exclude EMA200 values that are >5% outside candle range
-    candle_high   = max(c['high'] for c in ohlcv[-N_CANDLES:])
-    candle_low    = min(c['low']  for c in ohlcv[-N_CANDLES:])
+    candle_high   = max(c.get('high') or c.get('close') or 0 for c in ohlcv[-N_CANDLES:])
+    candle_low    = min(c.get('low')  or c.get('close') or 0 for c in ohlcv[-N_CANDLES:])
     ema200_hi_cut = candle_high * 1.05
     ema200_lo_cut = candle_low  * 0.95
 
     all_prices = (
-        [c['high'] for c in ohlcv] +
-        [c['low']  for c in ohlcv] +
+        [c.get('high') or c.get('close') for c in ohlcv if c.get('high') or c.get('close')] +
+        [c.get('low')  or c.get('close') for c in ohlcv if c.get('low')  or c.get('close')] +
         [v for v in ema200[-N_CANDLES:] if v is not None and ema200_lo_cut <= v <= ema200_hi_cut] +
         [v for v in ema12 + ema26 if v is not None]
     )
@@ -151,11 +157,15 @@ def generate(data: dict, output_path: str = '/tmp/btc_chart.png') -> str:
 
     # ── 2. candles ───────────────────────────────────────────────────────────
     for i, c in enumerate(ohlcv[-N_CANDLES:]):
+        op = c.get('open')  or c.get('close') or 0
+        cl = c.get('close') or op
+        hi = c.get('high')  or max(op, cl)
+        lo = c.get('low')   or min(op, cl)
         x      = start_x + i * SLOT_W
-        y_high = to_y(c['high'])
-        y_low  = to_y(c['low'])
-        y_top  = to_y(max(c['open'], c['close']))
-        y_bot  = max(to_y(min(c['open'], c['close'])), y_top + 1)
+        y_high = to_y(hi)
+        y_low  = to_y(lo)
+        y_top  = to_y(max(op, cl))
+        y_bot  = max(to_y(min(op, cl)), y_top + 1)
         draw.line([(x, y_high), (x, y_low)], fill=C_UP_WICK)
         draw.rectangle([x, y_top, x + BODY_W - 1, y_bot], fill=C_UP)
 
@@ -173,11 +183,13 @@ def generate(data: dict, output_path: str = '/tmp/btc_chart.png') -> str:
         is_bull = e12c > e26c
         c_cross = ohlcv[-N_CANDLES:][j]
         x_dot   = start_x + j * SLOT_W
+        hi_cross = c_cross.get('high') or c_cross.get('close') or 0
+        lo_cross = c_cross.get('low')  or c_cross.get('close') or 0
         if is_bull:
-            y_dot = to_y(c_cross['high']) - 3
+            y_dot = to_y(hi_cross) - 3
             color = C_SPOT_UP
         else:
-            y_dot = to_y(c_cross['low']) + 2
+            y_dot = to_y(lo_cross) + 2
             color = C_SPOT_DOWN
         if cy <= y_dot <= cy + ch:
             draw.rectangle([x_dot, y_dot, x_dot + 1, y_dot + 1], fill=color)
@@ -229,10 +241,14 @@ def generate(data: dict, output_path: str = '/tmp/btc_chart.png') -> str:
     edge_max = start_x + total_w - 11
 
     for i, c in enumerate(ohlcv[-N_CANDLES:]):
-        ts = c.get('ts')
-        if ts is None:
+        d_str = c.get('date', '')
+        if not d_str:
             continue
-        dt = datetime.fromtimestamp(ts / 1000, tz=timezone.utc)
+        try:
+            dt = datetime.strptime(d_str, '%Y-%m-%d') if '-' in d_str \
+                 else datetime.strptime(d_str, '%b %d, %Y')
+        except Exception:
+            continue
         if dt.day != 1:
             continue
         x = start_x + i * SLOT_W + 1

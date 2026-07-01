@@ -123,12 +123,12 @@ Canonical page ID is `61579068644495` (`760212033839028` redirects to it).
 
 ### Images (weekly only)
 
-| #   | File                            | Description                                                                       |
-| --- | ------------------------------- | --------------------------------------------------------------------------------- |
-| 1   | `generate_chart_btc.py`         | Candlestick chart — EMA 200/12/26 + Action Zone · 400×210 → 1200×630 px pixel art |
-| 2   | `generate_onchain_chart_btc.py` | Line chart — Close/Realized/STH/LTH/TMM · 120 days · same pixel art spec          |
+| #   | File                            | Description                                                                                                                   |
+| --- | ------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| 1   | `generate_chart_btc.py`         | Candlestick chart with EMA 200 (blue) + Action Zone · 400×200 → 1200×600 px pixel art                                         |
+| 2   | `generate_onchain_chart_btc.py` | Dot chart: BTC candles (orange) · Realized Price (blue) · STH (red) · LTH/green · TMM (gray) · 120 days · same pixel art spec |
 
-Onchain history for chart #2 is cached in `cache.json` (repo root) under `price_history`.
+Onchain history for chart #2 is cached in `onchain_chart_cache.json` (repo root, gitignored). Run `full_asset_status/seed.py` once to backfill 120 days of OHLCV + STH/LTH/TMM/realized.
 
 ### Plan / spec files
 
@@ -151,9 +151,12 @@ Runs every hour. Reads `signal/setup.json` for strategy configs (EMA200 ratio, v
 
 ## Shared cache
 
-`cache.json` at repo root is shared across all Python scripts. Current keys:
+| File                                        | Contents                                                              |
+| ------------------------------------------- | --------------------------------------------------------------------- |
+| `full_asset_status/cache.json`              | BTC dominance (prev/current) for direction arrow                      |
+| `full_asset_status/onchain_chart_cache.csv` | 120-day OHLCV + RP/STH/LTH/TMM history for onchain chart (gitignored) |
 
-- `price_history` — daily onchain snapshot array used by the onchain line chart (max 120 entries, rolling)
+Copy `onchain_chart_cache.csv` to the VPS to bootstrap history on a new machine.
 
 ---
 
