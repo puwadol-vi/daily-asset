@@ -75,24 +75,19 @@ def main() -> None:
     )
     discord_message = assemble(partial, response.content[0].text)
 
-    webhooks = [
-        os.environ['DISCORD_WEBHOOK_URL'],
-        os.environ['FULL_ASSET_WEBHOOK_URL'],
-    ]
-    for url in webhooks:
-        with open(img_path, 'rb') as img_file:
-            resp = requests.post(
-                url,
-                files={'file': ('btc_chart.png', img_file, 'image/png')},
-                data={'payload_json': json.dumps({'content': discord_message})},
-            )
-        resp.raise_for_status()
+    with open(img_path, 'rb') as img_file:
+        resp = requests.post(
+            os.environ['FULL_ASSET_WEBHOOK_URL'],
+            files={'file': ('btc_chart.png', img_file, 'image/png')},
+            data={'payload_json': json.dumps({'content': discord_message})},
+        )
+    resp.raise_for_status()
 
     fb_result = _post_facebook(img_path, discord_message)
 
-    # Report Facebook result back to Discord
-    for url in webhooks:
-        requests.post(url, json={'content': fb_result})
+    log_url = os.environ.get('DISCORD_LOG_URL')
+    if log_url:
+        requests.post(log_url, json={'content': f'Full Asset Status\n{fb_result}'})
 
     print(f"Posted: {data['date']}")
 

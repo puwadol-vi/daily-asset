@@ -82,7 +82,7 @@ def build_message(groups: list, ref: date) -> str:
 # ── outputs ───────────────────────────────────────────────────────────────────
 
 
-def post_discord(groups: list, ref: date) -> None:
+def post_log(groups: list, ref: date) -> None:
     error_items = [
         item
         for g in groups
@@ -92,7 +92,7 @@ def post_discord(groups: list, ref: date) -> None:
     lines = [f'📅 Fund Status — {ref.strftime("%b %-d, %Y")} — {len(error_items)} error(s)']
     for item in error_items:
         lines.append(f'❌ {item["display"]}  {item["error"]}')
-    url = os.environ['DISCORD_WEBHOOK_URL']
+    url = os.environ['DISCORD_LOG_URL']
     resp = requests.post(url, json={'content': '\n'.join(lines)})
     if not resp.ok:
         raise RuntimeError(f'Discord {resp.status_code}: {resp.text}')
@@ -159,13 +159,13 @@ def main() -> None:
         print(f'Holiday detected on {ref} (all data stale) — skip')
         return
 
-    # Discord — failure does NOT block calendar
-    if os.environ.get('DISCORD_WEBHOOK_URL'):
+    # Log — failure does NOT block calendar
+    if os.environ.get('DISCORD_LOG_URL'):
         try:
-            post_discord(groups, ref)
-            print('Discord: OK')
+            post_log(groups, ref)
+            print('Log: OK')
         except Exception as e:
-            print(f'Discord: ERROR — {e}')
+            print(f'Log: ERROR — {e}')
 
     # Calendar
     if os.environ.get('GOOGLE_SERVICE_ACCOUNT_FILE') and os.environ.get('GOOGLE_CALENDAR_ID'):

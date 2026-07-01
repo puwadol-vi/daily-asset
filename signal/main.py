@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 EMA/BB Signal Alert — run once per hour via cron.
-Cron: 1 * * * * cd /path && venv/bin/python3 ema_bb_signal/main.py >> cron.log 2>&1
+Cron: 0 * * * * cd /path && venv/bin/python3 signal/main.py >> cron.log 2>&1
 """
 
 import os
@@ -29,7 +29,7 @@ SETUP_JSON = Path(__file__).parent / 'setup.json'
 def load_config() -> list:
     return json.loads(SETUP_JSON.read_text())
 
-WEBHOOK = os.getenv('SIGNAL_WEBHOOK_URL', '')
+WEBHOOK = os.getenv('EMA_BB_SIGNAL_WEBHOOK_URL', '')
 
 
 # ── indicators ────────────────────────────────────────────────────────────────
@@ -91,6 +91,7 @@ def current_candle_datetime() -> str:
     return (now - pd.Timedelta(hours=1)).floor('h').strftime('%Y-%m-%d %H:%M')
 
 
+
 def csv_gap(candle_dt: str) -> int | None:
     """Hours between last CSV row and candle_dt. None = no CSV. 0 = already computed."""
     if not CALC_CSV.exists():
@@ -132,7 +133,7 @@ OPS = {'==': lambda a, b: a == b, '!=': lambda a, b: a != b,
 
 def send_discord(msg: str):
     if not WEBHOOK:
-        print('[discord] No webhook configured (SIGNAL_WEBHOOK_URL)')
+        print('[discord] No webhook configured (EMA_BB_SIGNAL_WEBHOOK_URL)')
         return
     try:
         r = requests.post(WEBHOOK, json={'content': msg}, timeout=10)
@@ -185,10 +186,11 @@ def build_message(calc_row: dict) -> str:
     groups = load_config()
     price  = calc_row['close']
     atr    = calc_row['atr_14']
+    dt     = (pd.Timestamp(calc_row['datetime']) + pd.Timedelta(hours=1)).strftime('%Y-%m-%d %H:%M')
 
     lines = [
         '─' * 34,
-        f"🕐 {calc_row['datetime']}",
+        f"🕐 {dt}",
         f"💲 BTC/USDT — ${price:,.2f}",
     ]
 
@@ -246,22 +248,33 @@ def run_once(exchange):
 
     gap = csv_gap(candle_dt)
 
-    if gap == 0:
-        # Already computed this hour — read existing row, display only
-        print(f"[main] {candle_dt} already in CSV — display only")
-        calc_row = pd.read_csv(CALC_CSV).query(f'datetime == "{candle_dt}"').iloc[0].to_dict()
-    elif gap == 1:
-        # gap == 1: normal — compute new candle
-        calc_row = _fetch_compute_write(exchange, candle_dt)
-    else:
-        # No CSV or gap in history — seed fills missing candles first
-        reason = 'CSV missing' if gap is None else f'gap {gap}h'
-        print(f'[main] {reason} — running seed.py...')
-        subprocess.run([sys.executable, Path(__file__).parent / 'seed.py'], check=True)
-        calc_row = pd.read_csv(CALC_CSV).query(f'datetime == "{candle_dt}"').iloc[0].to_dict()
+    errors = 0
+    try:
+        if gap == 0:
+            # Already computed this hour — read existing row, display only
+            print(f"[main] {candle_dt} already in CSV — display only")
+            calc_row = pd.read_csv(CALC_CSV).query(f'datetime == "{candle_dt}"').iloc[0].to_dict()
+        elif gap == 1:
+            # gap == 1: normal — compute new candle
+            calc_row = _fetch_compute_write(exchange, candle_dt)
+        else:
+            # No CSV or gap in history — seed fills missing candles first
+            reason = 'CSV missing' if gap is None else f'gap {gap}h'
+            print(f'[main] {reason} — running seed.py...')
+            subprocess.run([sys.executable, Path(__file__).parent / 'seed.py'], check=True)
+            calc_row = pd.read_csv(CALC_CSV).query(f'datetime == "{candle_dt}"').iloc[0].to_dict()
 
-    msg = build_message(calc_row)
-    send_discord(msg)
+        msg = build_message(calc_row)
+        send_discord(msg)
+    except Exception as e:
+        errors = 1
+        print(f'[main] ERROR: {e}')
+        raise
+    finally:
+        log_url = os.getenv('DISCORD_LOG_URL')
+        if log_url:
+            dt_label = (pd.Timestamp(candle_dt) + pd.Timedelta(hours=1)).strftime('%b %-d, %Y %H:%M')
+            requests.post(log_url, json={'content': f'🕐 {dt_label} {errors} error(s)'}, timeout=10)
 
 
 if __name__ == '__main__':

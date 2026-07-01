@@ -56,13 +56,14 @@ def main() -> None:
 
     message = '\n'.join(lines)
 
-    webhooks = [
-        os.environ['DISCORD_WEBHOOK_URL'],
-        os.environ['MULTI_ASSET_WEBHOOK_URL'],
-    ]
-    for url in webhooks:
-        resp = requests.post(url, json={'content': message})
-        resp.raise_for_status()
+    resp = requests.post(os.environ['MULTI_ASSET_WEBHOOK_URL'], json={'content': message})
+    resp.raise_for_status()
+
+    error_count = sum(1 for r in results if r.get('error'))
+    log_url = os.environ.get('DISCORD_LOG_URL')
+    if log_url:
+        requests.post(log_url, json={'content': f'📅 Multi Asset Status — {data_date} — {error_count} error(s)'})
+
     print(f'\nPosted: {data_date}')
 
 
