@@ -7,7 +7,7 @@ Layout · Data Sources · Per-Asset Thresholds · Workflow
 ## Post Layout — Daily
 
 ```
-📊 BTC Daily Status — @{DD Mon YYYY}
+📊 Pixel Chart Diary - BTC Daily Status — @{DD Mon YYYY}
 
 [🟢/🔴 BTC] · $[PRICE]  ([+/-X.XX%])
 
@@ -26,7 +26,7 @@ MVRV [V] [🔵/🟢/🟡/🔴]  ·  STH [V]  ·  LTH [V]  |  Z-SCORE [V]
 ## Post Layout — Weekly
 
 ```
-📊 BTC Weekly Status — @{DD Mon YYYY} ({DD Mon} - {DD Mon})
+📊 Pixel Chart Diary - BTC Weekly Status — @{DD Mon YYYY} ({DD Mon} - {DD Mon})
 
 [🟢/🔴 BTC] · $[PRICE]  ([+/-X.XX%] 7d)
 

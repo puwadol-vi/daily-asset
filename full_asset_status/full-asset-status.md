@@ -18,7 +18,7 @@ Layout · Data Sources · Per-Asset Thresholds · Workflow
 ### Output Format
 
 ```
-📊 BTC Daily Status — @{DD Mon YYYY}
+📊 Pixel Chart Diary - BTC Daily Status — @{DD Mon YYYY}
 
 [🟢/🔴 BTC] · $[PRICE]  ([+/-X.XX%])
 
@@ -35,7 +35,7 @@ MVRV [V] [🔵/🟢/🟡/🔴]  ·  STH [V]  ·  LTH [V]  |  Z-SCORE [V] [🔵/�
 ### Example
 
 ```
-📊 BTC Daily Status — @01 Jul 2026
+📊 Pixel Chart Diary - BTC Daily Status — @01 Jul 2026
 
 🔴 BTC · $58,624.71  (-0.13%)
 
@@ -56,7 +56,7 @@ MVRV 1.13 🟢  ·  STH 0.87  ·  LTH 1.21  |  Z-SCORE 0.24 🟢
 ### Output Format
 
 ```
-📊 BTC Weekly Status — @{DD Mon YYYY} ({DD Mon} - {DD Mon})
+📊 Pixel Chart Diary - BTC Weekly Status — @{DD Mon YYYY} ({DD Mon} - {DD Mon})
 
 [🟢/🔴 BTC] · $[PRICE]  ([+/-X.XX%] 7d)
 
@@ -87,7 +87,7 @@ F&G: [VALUE] [🔴/🟠/🟡/🟢/🟢]  · Dom: [X.X%]
 ### Example
 
 ```
-📊 BTC Weekly Status — @29 Jun 2026 (22 Jun - 28 Jun)
+📊 Pixel Chart Diary - BTC Weekly Status — @29 Jun 2026 (22 Jun - 28 Jun)
 
 🔴 BTC · $58,624.71  (-6.55% 7d)
 

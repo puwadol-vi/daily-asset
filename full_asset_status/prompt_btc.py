@@ -72,7 +72,7 @@ def build_daily(data: dict) -> str:
     zscore_str  = f"{d['mvrv_z_score']:.2f} {zscore_emoji}" if d.get('mvrv_z_score') is not None else 'N/A'
 
     return (
-        f"📊 BTC Daily Status — @{today}\n"
+        f"📊 Pixel Chart Diary - BTC Daily Status — @{today}\n"
         f"\n"
         f"{signal} · ${_fmt(d['price'])}  ({_chg_str(d['change_24h'])})\n"
         f"\n"
@@ -145,7 +145,7 @@ def build_weekly_partial(data: dict) -> tuple[str, str]:
     nupl_str   = f"{d['nupl']:.2f} {nupl_emoji}" if d.get('nupl') is not None else 'N/A'
 
     partial = (
-        f"📊 BTC Weekly Status — @{today.strftime('%d %b %Y')}"
+        f"📊 Pixel Chart Diary - BTC Weekly Status — @{today.strftime('%d %b %Y')}"
         f" ({last_mon.strftime('%d %b')} - {last_sun.strftime('%d %b')})\n"
         f"\n"
         f"{signal} · ${_fmt(d['price'])}  ({_chg_str(d['change_7d'], ' 7d')})\n"
