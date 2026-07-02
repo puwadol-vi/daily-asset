@@ -62,7 +62,11 @@ def main() -> None:
     error_count = sum(1 for r in results if r.get('error'))
     log_url = os.environ.get('DISCORD_LOG_URL')
     if log_url:
-        requests.post(log_url, json={'content': f'📅 Multi Asset Status — {data_date} — {error_count} error(s)'})
+        lines = [f'📅 Multi Asset Status — {data_date} — {error_count} error(s)']
+        for r in results:
+            if r.get('error'):
+                lines.append(f'❌ {r["ticker"]}  {r["error"]}')
+        requests.post(log_url, json={'content': '\n'.join(lines)})
 
     print(f'\nPosted: {data_date}')
 

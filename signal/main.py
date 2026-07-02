@@ -297,22 +297,19 @@ def run_once(exchange):
     gap = csv_gap(candle_dt)
 
     errors = 0
+    err_msg = ''
     try:
         if gap == 0:
-            # Already computed this hour — read existing row, display only
             print(f"[main] {candle_dt} already in CSV — display only")
             calc_row = pd.read_csv(CALC_CSV).query(f'datetime == "{candle_dt}"').iloc[0].to_dict()
         elif gap == 1:
-            # gap == 1: normal — compute new candle
             calc_row = _fetch_compute_write(exchange, candle_dt)
         else:
-            # No CSV or gap in history — seed fills missing candles first
             reason = 'CSV missing' if gap is None else f'gap {gap}h'
             print(f'[main] {reason} — running seed.py...')
             subprocess.run([sys.executable, Path(__file__).parent / 'seed.py'], check=True)
             calc_row = pd.read_csv(CALC_CSV).query(f'datetime == "{candle_dt}"').iloc[0].to_dict()
 
-        # Group setups by webhook env var, send each to its own channel
         from collections import defaultdict
         webhook_groups: dict = defaultdict(list)
         for g in load_config():
@@ -325,13 +322,17 @@ def run_once(exchange):
                 send_discord(build_message(calc_row, groups), url)
     except Exception as e:
         errors = 1
+        err_msg = str(e)
         print(f'[main] ERROR: {e}')
         raise
     finally:
         log_url = os.getenv('DISCORD_LOG_URL')
         if log_url:
             dt_label = (pd.Timestamp(candle_dt) + pd.Timedelta(hours=1)).strftime('%b %-d, %Y %H:%M')
-            requests.post(log_url, json={'content': f'🕐 {dt_label} {errors} error(s)'}, timeout=10)
+            content = f'🕐 {dt_label} {errors} error(s)'
+            if err_msg:
+                content += f'\n{err_msg}'
+            requests.post(log_url, json={'content': content}, timeout=10)
 
 
 if __name__ == '__main__':

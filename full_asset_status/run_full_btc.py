@@ -124,14 +124,19 @@ def _run_weekly(data: dict, history: list) -> None:
 
 
 def main() -> None:
-    data = fetch_all()
-    cache_price_snapshot(data)
-    history = load_price_history()   # read after update — includes today
-
-    if _is_weekly():
-        _run_weekly(data, history)
-    else:
-        _run_daily(data)
+    try:
+        data = fetch_all()
+        cache_price_snapshot(data)
+        history = load_price_history()
+        if _is_weekly():
+            _run_weekly(data, history)
+        else:
+            _run_daily(data)
+    except Exception as e:
+        log_url = os.environ.get('DISCORD_LOG_URL')
+        if log_url:
+            requests.post(log_url, json={'content': f'Full Asset Status\nERROR: {e}'})
+        raise
 
 
 if __name__ == '__main__':

@@ -60,7 +60,10 @@ def _compute(df: pd.DataFrame) -> dict:
     df['senkou_a'] = ich.ichimoku_a()
     df['senkou_b'] = ich.ichimoku_b()
 
-    df['adx'] = ta.trend.ADXIndicator(df['high'], df['low'], df['close'], window=14).adx()
+    try:
+        df['adx'] = ta.trend.ADXIndicator(df['high'], df['low'], df['close'], window=14).adx()
+    except (IndexError, ValueError):
+        df['adx'] = float('nan')
 
     last  = df.iloc[-1]
     close = round(float(last['close']), 2)
@@ -130,6 +133,8 @@ def init(exchange):
 
 def migrate(exchange):
     """Backfill missing indicator columns for all existing CSV rows."""
+    if not CALC_CSV.exists():
+        return
     df_csv = pd.read_csv(CALC_CSV)
     missing = [c for c in _CALC_COLS if c not in df_csv.columns]
     if not missing:
@@ -158,6 +163,8 @@ def migrate(exchange):
 
 
 def recover(exchange):
+    if not CALC_CSV.exists():
+        return
     df_csv  = pd.read_csv(CALC_CSV)
     last_dt = pd.Timestamp(df_csv['datetime'].iloc[-1])
     now_ict = pd.Timestamp.now('UTC').tz_localize(None) + pd.Timedelta(hours=7)
@@ -187,9 +194,8 @@ def recover(exchange):
 
 if __name__ == '__main__':
     exchange = ccxt.binance({'enableRateLimit': True})
-    if CALC_CSV.exists():
-        migrate(exchange)   # no-op if schema is current
-        recover(exchange)
-    else:
+    if not CALC_CSV.exists():
         init(exchange)
+    migrate(exchange)   # no-op if schema is current (or file missing after failed init)
+    recover(exchange)   # no-op if up to date (fills any slot init() missed)
     print('[seed] Done')
