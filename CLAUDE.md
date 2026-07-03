@@ -12,6 +12,7 @@ Python project that runs scheduled market data jobs and posts results to Discord
 | `multi_asset_status` | `multi_asset_status/run_multi_stock.py` | Discord            | `3 0 * * *`  |
 | `fund_status`        | `fund_status/run_fund_status.py`        | Google Calendar    | `2 23 * * *` |
 | `signal`             | `signal/main.py`                        | Discord            | `0 * * * *`  |
+| `option_signal`      | `option_signal/main.py`                 | Discord            | `5 8 * * *`  |
 
 All times are UTC. Server runs UTC+0; target display time is 07:02 UTC+7 = 00:02 UTC.
 
@@ -56,6 +57,12 @@ Facebook: ERROR 190 — Invalid OAuth access token.
 🕐 Jun 30, 2026 00:00 0 error(s)
 ```
 
+**option_signal**
+
+```
+📅 Sell Option Signal — Jun 30, 2026 — 0 error(s)
+```
+
 ---
 
 ## Environment Variables
@@ -82,6 +89,9 @@ GOOGLE_SERVICE_ACCOUNT_FILE=service_account.json
 
 # signal
 EMA_BB_SIGNAL_WEBHOOK_URL=       # Discord channel for EMA/BB signal alerts
+
+# option_signal
+SELL_OPTION_SIGNAL_WEBHOOK_URL=  # Discord channel for sell-option (CSP/CC) alerts
 ```
 
 ---
@@ -146,6 +156,16 @@ Onchain history for chart #2 is cached in `onchain_chart_cache.json` (repo root,
 ## signal (EMA/BB)
 
 Runs every hour. Reads `signal/setup.json` for strategy configs (EMA200 ratio, volume ratio, BB ratio conditions). Posts alert to `EMA_BB_SIGNAL_WEBHOOK_URL` when a signal fires. Logs run summary to `DISCORD_LOG_URL`.
+
+---
+
+## option_signal (Sell-Option Income)
+
+Advisory-only (no order placement). Runs every day at 08:05 UTC, ~5 min after Binance's daily 08:00 UTC option rollover — the 1-DTE contract is simply "expires tomorrow 08:00 UTC," computed from the clock rather than looked up from an option chain.
+
+Fetches 4H BTC candles via `ccxt` and evaluates each side (PUT/CALL) independently against ADX(14)+DMI trend direction and EMA(200), against VPVR support/resistance (real rolling volume-by-price histogram, 60-day lookback). Each side lands in one of four states: 🎯 near-the-money (trend confirmed in favor), 🛡️ at-structure (confirmed sideways), 🚫 skip (trend confirmed against), or ⏸️ no confirmed signal (reference only). Strike is always ATR-derived; a live Binance options lookup (`eapi/v1/mark`) attaches the real delta/premium/IV of the nearest listed contract for display, and can demote a 🎯 signal (never upgrade) based on funding-rate crowding or IV vs. realized-vol mismatch. Posts to `SELL_OPTION_SIGNAL_WEBHOOK_URL`; logs run summary to `DISCORD_LOG_URL`.
+
+Spec: `option_signal/Bitcoin_Options_Income_Strategy.md` (implementation-accurate version of `strategy/Bitcoin_Options_Income_Strategy.md`).
 
 ---
 

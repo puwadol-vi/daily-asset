@@ -5,6 +5,7 @@ echo "2 0 * * * cd /home/ubuntu/daily-asset && /home/ubuntu/daily-asset/venv/bin
 echo "3 0 * * * cd /home/ubuntu/daily-asset && /home/ubuntu/daily-asset/venv/bin/python3 multi_asset_status/run_multi_stock.py >> /home/ubuntu/daily-asset/cron.log 2>&1"
 echo "2 23 * * * cd /home/ubuntu/daily-asset && /home/ubuntu/daily-asset/venv/bin/python3 fund_status/run_fund_status.py >> /home/ubuntu/daily-asset/cron.log 2>&1"
 echo "0 * * * * cd /home/ubuntu/daily-asset && /home/ubuntu/daily-asset/venv/bin/python3 signal/main.py >> /home/ubuntu/daily-asset/cron.log 2>&1"
+echo "5 8 * * * cd /home/ubuntu/daily-asset && /home/ubuntu/daily-asset/venv/bin/python3 option_signal/main.py >> /home/ubuntu/daily-asset/cron.log 2>&1"
 ) | crontab -
 echo "Crontab set:"
 crontab -l
