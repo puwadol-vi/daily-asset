@@ -36,6 +36,16 @@ def _fb_upload_photo(img_path: str, page_id: str, token: str) -> str:
     return r.json()['id']
 
 
+def _fb_comment(post_id: str, token: str) -> None:
+    requests.post(
+        f'https://graph.facebook.com/v19.0/{post_id}/comments',
+        data={
+            'message': '📊 https://lnconnext.pages.dev/PixelChartDiary',
+            'access_token': token,
+        },
+    ).raise_for_status()
+
+
 def _fb_post(caption: str, img_paths: list = None) -> str:
     """Post to Facebook page. Returns log status string."""
     page_id = os.environ.get('FACEBOOK_PAGE_ID')
@@ -54,6 +64,10 @@ def _fb_post(caption: str, img_paths: list = None) -> str:
         r.raise_for_status()
         post_id = r.json().get('id', '')
         url = f'https://www.facebook.com/{post_id.replace("_", "/posts/")}'
+        try:
+            _fb_comment(post_id, token)
+        except Exception:
+            pass
         return f'Facebook: posted OK\n{url}'
     except requests.HTTPError as e:
         body = e.response.json() if e.response else {}
