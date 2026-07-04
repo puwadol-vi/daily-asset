@@ -1,0 +1,565 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>BBands BO [LuxAlgo] — Backtest</title>
+<style>
+  :root {
+    --bg: #0f1117;
+    --panel: #171a23;
+    --border: #2a2e3a;
+    --text: #e6e8ef;
+    --muted: #8b90a0;
+    --up: #ffffff;
+    --down: #ffffff;
+    --entry-long: #22c55e;
+    --exit-long: #0ea5e9;
+    --entry-short: #ef4444;
+    --exit-short: #eab308;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;
+    font-size: 14px;
+  }
+  h1 {
+    font-size: 16px;
+    font-weight: 600;
+    margin: 0;
+    padding: 14px 18px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .plan-link {
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--text);
+    text-decoration: none;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 6px 12px;
+  }
+  .plan-link:hover { background: #1f2330; }
+  .controls {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 14px;
+    align-items: flex-end;
+    padding: 14px 18px;
+    border-bottom: 1px solid var(--border);
+    background: var(--panel);
+  }
+  .field { display: flex; flex-direction: column; gap: 4px; }
+  .field label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
+  select, input[type=number] {
+    background: #0d0f16;
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 6px 8px;
+    font-size: 13px;
+    min-width: 150px;
+  }
+  input[type=number] { min-width: 110px; }
+
+  .legend {
+    display: flex;
+    gap: 18px;
+    flex-wrap: wrap;
+    padding: 10px 18px;
+    font-size: 12px;
+    color: var(--muted);
+    border-bottom: 1px solid var(--border);
+  }
+  .legend span { display: inline-flex; align-items: center; gap: 6px; }
+  .swatch { width: 10px; height: 10px; border-radius: 2px; display: inline-block; }
+
+  .chart-wrap {
+    overflow-x: auto;
+    border-bottom: 1px solid var(--border);
+    background: #0b0d13;
+    position: relative;
+  }
+  .chart-inner { display: block; }
+  canvas { display: block; cursor: crosshair; }
+
+  .hover-tooltip {
+    position: fixed;
+    display: none;
+    pointer-events: none;
+    background: #1c202c;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 6px 10px;
+    font-size: 12px;
+    line-height: 1.5;
+    white-space: nowrap;
+    z-index: 10;
+  }
+  .hover-tooltip .date { color: var(--muted); }
+
+  .summary { padding: 18px; }
+  .stat-row { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 18px; }
+  .stat-card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px 16px;
+    min-width: 130px;
+  }
+  .stat-card .label { font-size: 11px; color: var(--muted); text-transform: uppercase; }
+  .stat-card .value { font-size: 18px; font-weight: 600; margin-top: 2px; }
+  .stat-card.book-long { border-left: 3px solid var(--entry-long); }
+  .stat-card.book-short { border-left: 3px solid var(--entry-short); }
+
+  table { border-collapse: collapse; width: 100%; font-size: 13px; }
+  th, td { padding: 6px 10px; text-align: right; border-bottom: 1px solid var(--border); }
+  th:first-child, td:first-child, th:nth-child(2), td:nth-child(2) { text-align: left; }
+  th { color: var(--muted); font-weight: 500; font-size: 11px; text-transform: uppercase; }
+  tr:hover td { background: rgba(255,255,255,0.03); }
+  .pos { color: #4ade80; }
+  .neg { color: #f87171; }
+  .side-long { color: var(--entry-long); font-weight: 600; }
+  .side-short { color: var(--entry-short); font-weight: 600; }
+  .empty { color: var(--muted); padding: 24px; text-align: center; }
+</style>
+</head>
+<body>
+
+<h1>BBands BO [LuxAlgo] — Weekly Backtest <a class="plan-link" href="plan.html">View Plan</a></h1>
+
+<div class="controls">
+  <div class="field">
+    <label>Length</label>
+    <select id="length"></select>
+  </div>
+  <div class="field">
+    <label>Mult</label>
+    <select id="mult"></select>
+  </div>
+  <div class="field">
+    <label>Entry Rule</label>
+    <select id="entryRule"></select>
+  </div>
+  <div class="field">
+    <label>Exit Rule</label>
+    <select id="exitRule"></select>
+  </div>
+  <div class="field">
+    <label>Side</label>
+    <select id="side">
+      <option value="long">Long only</option>
+      <option value="short">Short only</option>
+      <option value="both" selected>Both (hedge)</option>
+    </select>
+  </div>
+  <div class="field">
+    <label>Initial Capital</label>
+    <input type="number" id="capital" value="10000" step="100" min="1">
+  </div>
+</div>
+
+<div class="legend">
+  <span><span class="swatch" style="background:var(--entry-long)"></span>Entry Long</span>
+  <span><span class="swatch" style="background:var(--exit-long)"></span>Exit Long</span>
+  <span><span class="swatch" style="background:var(--entry-short)"></span>Entry Short</span>
+  <span><span class="swatch" style="background:var(--exit-short)"></span>Exit Short</span>
+  <span><span class="swatch" style="background:var(--up)"></span>Up week</span>
+  <span><span class="swatch" style="background:var(--down)"></span>Down week</span>
+</div>
+
+<div class="chart-wrap">
+  <div class="chart-inner" id="chartInner">
+    <canvas id="candleCanvas"></canvas>
+    <canvas id="indicatorCanvas"></canvas>
+  </div>
+  <div class="hover-tooltip" id="hoverTooltip"></div>
+</div>
+
+<div class="summary">
+  <div class="stat-row" id="statRow"></div>
+  <div id="tableWrap"></div>
+</div>
+
+<script>
+const BITS = {
+  GREEN_GO_POS:  1 << 0,
+  RED_GO_POS:    1 << 1,
+  CROSS_UP:      1 << 2,
+  CROSS_DOWN:    1 << 3,
+  RED_PEAK:      1 << 4,
+  GREEN_PEAK:    1 << 5,
+  GREEN_GO_ZERO: 1 << 6,
+  RED_GO_ZERO:   1 << 7,
+};
+
+const LENGTHS = [7, 8, 9, 10];
+const MULTS = [0.10, 0.15, 0.20, 0.25];
+
+const ENTRY_RULES = [
+  { id: 1, label: 'Momentum flips from zero', longBit: BITS.GREEN_GO_POS, shortBit: BITS.RED_GO_POS },
+  { id: 2, label: 'Line crosses over',        longBit: BITS.CROSS_UP,     shortBit: BITS.CROSS_DOWN },
+  { id: 3, label: 'Opposing line peaks',      longBit: BITS.RED_PEAK,    shortBit: BITS.GREEN_PEAK },
+];
+const EXIT_RULES = [
+  { id: 1, label: 'Own line peaks',                  longBit: BITS.GREEN_PEAK,    shortBit: BITS.RED_PEAK },
+  { id: 2, label: 'Line crosses back',                longBit: BITS.CROSS_DOWN,   shortBit: BITS.CROSS_UP },
+  { id: 3, label: 'Own line returns to zero',         longBit: BITS.GREEN_GO_ZERO, shortBit: BITS.RED_GO_ZERO },
+  { id: 4, label: 'Opposing line flips from zero',    longBit: BITS.RED_GO_POS,   shortBit: BITS.GREEN_GO_POS },
+];
+
+const PX_PER_BAR = 8;
+const CANDLE_HEIGHT = 520;
+const INDICATOR_HEIGHT = 170;
+
+function parseCSV(text) {
+  const lines = text.trim().split(/\r?\n/);
+  const header = lines[0].split(',');
+  const rows = lines.slice(1).map(l => l.split(','));
+  return { header, rows };
+}
+
+function col(parsed, name, parser) {
+  const idx = parsed.header.indexOf(name);
+  if (idx === -1) throw new Error(`column not found: ${name}`);
+  return parsed.rows.map(r => {
+    const v = r[idx];
+    if (v === undefined || v === '') return null;
+    return parser ? parser(v) : v;
+  });
+}
+
+function fmtMoney(v) { return v.toLocaleString(undefined, { maximumFractionDigits: 2 }); }
+function fmtPct(v) { return `${v >= 0 ? '+' : ''}${v.toFixed(2)}%`; }
+
+function simulateBook(side, entryBit, exitBit, masks, closes, dates, initialCapital) {
+  let capital = initialCapital;
+  let peak = initialCapital;
+  let position = null;
+  const trades = [];
+
+  for (let i = 0; i < masks.length; i++) {
+    const m = masks[i];
+    if (m === null) continue;
+
+    if (position) {
+      if ((m & exitBit) !== 0) {
+        const exitPrice = closes[i];
+        const pct = side === 'long'
+          ? (exitPrice - position.entryPrice) / position.entryPrice
+          : (position.entryPrice - exitPrice) / position.entryPrice;
+        const beforeCapital = capital;
+        capital *= (1 + pct);
+        peak = Math.max(peak, capital);
+        trades.push({
+          side,
+          entryIndex: position.entryIndex,
+          entryDate: dates[position.entryIndex],
+          entryPrice: position.entryPrice,
+          exitIndex: i,
+          exitDate: dates[i],
+          exitPrice,
+          pct: pct * 100,
+          beforeCapital,
+          capital,
+          drawdown: (capital - peak) / peak * 100,
+        });
+        position = null;
+      }
+    }
+
+    if (!position) {
+      if ((m & entryBit) !== 0) {
+        position = { entryIndex: i, entryPrice: closes[i] };
+      }
+    }
+  }
+  return trades;
+}
+
+function computeStats(trades, initialCapital) {
+  if (!trades.length) {
+    return { count: 0, winRate: 0, totalReturnPct: 0, maxDrawdownPct: 0, finalCapital: initialCapital };
+  }
+  const wins = trades.filter(t => t.pct > 0).length;
+  const finalCapital = trades[trades.length - 1].capital;
+  const maxDrawdownPct = Math.min(0, ...trades.map(t => t.drawdown));
+  return {
+    count: trades.length,
+    winRate: wins / trades.length * 100,
+    totalReturnPct: (finalCapital / initialCapital - 1) * 100,
+    maxDrawdownPct,
+    finalCapital,
+  };
+}
+
+function drawCandles(ctx, opens, highs, lows, closes) {
+  const n = closes.length;
+  const width = n * PX_PER_BAR;
+  const validHighs = highs.filter(v => v !== null);
+  const validLows = lows.filter(v => v !== null);
+  const yMax = Math.max(...validHighs) * 1.04;
+  const yMin = Math.min(...validLows) / 1.04;
+  const logMin = Math.log(yMin);
+  const logMax = Math.log(yMax);
+  // log ("expo") scale — price ranges span multiple orders of magnitude
+  const scale = v => CANDLE_HEIGHT - ((Math.log(v) - logMin) / (logMax - logMin)) * CANDLE_HEIGHT;
+
+  ctx.clearRect(0, 0, width, CANDLE_HEIGHT);
+
+  for (let i = 0; i < n; i++) {
+    if (closes[i] === null) continue;
+    const x = i * PX_PER_BAR + PX_PER_BAR / 2;
+    const isUp = closes[i] >= opens[i];
+    const color = isUp ? getVar('--up') : getVar('--down');
+    ctx.strokeStyle = color;
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    ctx.moveTo(x, scale(highs[i]));
+    ctx.lineTo(x, scale(lows[i]));
+    ctx.stroke();
+    const bw = PX_PER_BAR * 0.6;
+    const yO = scale(opens[i]), yC = scale(closes[i]);
+    const top = Math.min(yO, yC);
+    const h = Math.max(Math.abs(yO - yC), 1);
+    ctx.fillRect(x - bw / 2, top, bw, h);
+  }
+  return scale;
+}
+
+function drawLine(ctx, values, yScale, color) {
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  let started = false;
+  for (let i = 0; i < values.length; i++) {
+    const v = values[i];
+    if (v === null) { started = false; continue; }
+    const x = i * PX_PER_BAR + PX_PER_BAR / 2;
+    const y = yScale(v);
+    if (!started) { ctx.moveTo(x, y); started = true; } else { ctx.lineTo(x, y); }
+  }
+  ctx.stroke();
+}
+
+function drawIndicator(ctx, bulls, bears, dates) {
+  const n = bulls.length;
+  ctx.clearRect(0, 0, n * PX_PER_BAR, INDICATOR_HEIGHT);
+  const yScale = v => INDICATOR_HEIGHT - (v / 100) * INDICATOR_HEIGHT;
+
+  ctx.strokeStyle = 'rgba(255,255,255,0.2)';
+  ctx.setLineDash([4, 4]);
+  ctx.beginPath();
+  ctx.moveTo(0, yScale(50));
+  ctx.lineTo(n * PX_PER_BAR, yScale(50));
+  ctx.stroke();
+  ctx.setLineDash([]);
+
+  drawLine(ctx, bulls, yScale, getVar('--entry-long'));
+  drawLine(ctx, bears, yScale, getVar('--entry-short'));
+
+  ctx.fillStyle = 'rgba(230,232,239,0.6)';
+  ctx.font = '10px sans-serif';
+  const step = Math.max(1, Math.round(n / 40));
+  for (let i = 0; i < n; i += step) {
+    if (!dates[i]) continue;
+    ctx.fillText(dates[i].slice(0, 7), i * PX_PER_BAR, INDICATOR_HEIGHT - 4);
+  }
+}
+
+function drawMarkers(ctx, trades, height) {
+  for (const t of trades) {
+    const entryColor = t.side === 'long' ? 'rgba(34,197,94,0.5)' : 'rgba(239,68,68,0.5)';
+    const exitColor = t.side === 'long' ? 'rgba(14,165,233,0.65)' : 'rgba(234,179,8,0.65)';
+    const xEntry = t.entryIndex * PX_PER_BAR + PX_PER_BAR / 2;
+    const xExit = t.exitIndex * PX_PER_BAR + PX_PER_BAR / 2;
+    ctx.fillStyle = entryColor;
+    ctx.fillRect(xEntry - 1, 0, 2, height);
+    ctx.fillStyle = exitColor;
+    ctx.fillRect(xExit - 1, 0, 2, height);
+  }
+}
+
+function getVar(name) {
+  return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+}
+
+function renderStats(trades, initialCapital, side) {
+  const statRow = document.getElementById('statRow');
+  statRow.innerHTML = '';
+
+  function card(titlePrefix, stats, bookClass) {
+    const items = [
+      ['Trades', stats.count],
+      ['Win Rate', fmtPct(stats.winRate)],
+      ['Total Return', fmtPct(stats.totalReturnPct)],
+      ['Max Drawdown', fmtPct(stats.maxDrawdownPct)],
+      ['Final Capital', fmtMoney(stats.finalCapital)],
+    ];
+    return items.map(([label, value]) => `
+      <div class="stat-card ${bookClass}">
+        <div class="label">${titlePrefix ? titlePrefix + ' — ' : ''}${label}</div>
+        <div class="value">${value}</div>
+      </div>`).join('');
+  }
+
+  if (side === 'both') {
+    const longTrades = trades.filter(t => t.side === 'long');
+    const shortTrades = trades.filter(t => t.side === 'short');
+    statRow.innerHTML =
+      card('Long', computeStats(longTrades, initialCapital), 'book-long') +
+      card('Short', computeStats(shortTrades, initialCapital), 'book-short');
+  } else {
+    statRow.innerHTML = card('', computeStats(trades, initialCapital), '');
+  }
+}
+
+function renderTable(trades) {
+  const wrap = document.getElementById('tableWrap');
+  if (!trades.length) {
+    wrap.innerHTML = '<div class="empty">No trades for this combination.</div>';
+    return;
+  }
+  const showSide = trades.some(t => t.side === 'short') && trades.some(t => t.side === 'long');
+  const rows = trades.map(t => `
+    <tr>
+      ${showSide ? `<td class="side-${t.side}">${t.side.toUpperCase()}</td>` : ''}
+      <td>${t.entryDate}</td>
+      <td>${fmtMoney(t.entryPrice)}</td>
+      <td>${t.exitDate}</td>
+      <td>${fmtMoney(t.exitPrice)}</td>
+      <td class="${t.pct >= 0 ? 'pos' : 'neg'}">${fmtPct(t.pct)}</td>
+      <td>${fmtMoney(t.beforeCapital)}</td>
+      <td>${fmtMoney(t.capital)}</td>
+      <td class="${t.drawdown < 0 ? 'neg' : ''}">${fmtPct(t.drawdown)}</td>
+    </tr>`).join('');
+  wrap.innerHTML = `
+    <table>
+      <thead><tr>
+        ${showSide ? '<th>Side</th>' : ''}
+        <th>Entry Date</th><th>Entry Price</th>
+        <th>Exit Date</th><th>Exit Price</th>
+        <th>% Change</th><th>Before Capital</th><th>Capital</th><th>% Drawdown</th>
+      </tr></thead>
+      <tbody>${rows}</tbody>
+    </table>`;
+}
+
+async function main() {
+  const [rawText, procText] = await Promise.all([
+    fetch('raw_data.csv').then(r => {
+      if (!r.ok) throw new Error('fetch failed');
+      return r.text();
+    }),
+    fetch('process_data.csv').then(r => r.text()),
+  ]);
+
+  const raw = parseCSV(rawText);
+  const proc = parseCSV(procText);
+
+  const dates = col(raw, 'close_date');
+  const opens = col(raw, 'open', parseFloat);
+  const highs = col(raw, 'high', parseFloat);
+  const lows = col(raw, 'low', parseFloat);
+  const closes = col(raw, 'close', parseFloat);
+
+  function bullBear(length, mult) {
+    const key = `${length}_${mult.toFixed(2)}`;
+    return {
+      bull: col(raw, `bull_${key}`, parseFloat),
+      bear: col(raw, `bear_${key}`, parseFloat),
+    };
+  }
+  function mask(length, mult) {
+    const key = `${length}_${mult.toFixed(2)}`;
+    return col(proc, key, v => parseInt(v, 10));
+  }
+
+  const lengthSel = document.getElementById('length');
+  const multSel = document.getElementById('mult');
+  const entrySel = document.getElementById('entryRule');
+  const exitSel = document.getElementById('exitRule');
+  const sideSel = document.getElementById('side');
+  const capitalInput = document.getElementById('capital');
+
+  LENGTHS.forEach(l => lengthSel.add(new Option(l, l)));
+  MULTS.forEach(m => multSel.add(new Option(m.toFixed(2), m)));
+  ENTRY_RULES.forEach(r => entrySel.add(new Option(`#${r.id} — ${r.label}`, r.id)));
+  EXIT_RULES.forEach(r => exitSel.add(new Option(`#${r.id} — ${r.label}`, r.id)));
+
+  const candleCanvas = document.getElementById('candleCanvas');
+  const indicatorCanvas = document.getElementById('indicatorCanvas');
+  const n = dates.length;
+  candleCanvas.width = n * PX_PER_BAR;
+  candleCanvas.height = CANDLE_HEIGHT;
+  indicatorCanvas.width = n * PX_PER_BAR;
+  indicatorCanvas.height = INDICATOR_HEIGHT;
+
+  const tooltip = document.getElementById('hoverTooltip');
+  candleCanvas.addEventListener('mousemove', (e) => {
+    const rect = candleCanvas.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const i = Math.min(n - 1, Math.max(0, Math.floor(x / PX_PER_BAR)));
+    if (closes[i] === null) { tooltip.style.display = 'none'; return; }
+    tooltip.innerHTML = `<span class="date">${dates[i]}</span> &nbsp; ${fmtMoney(closes[i])}`;
+    tooltip.style.left = `${e.clientX + 14}px`;
+    tooltip.style.top = `${e.clientY + 14}px`;
+    tooltip.style.display = 'block';
+  });
+  candleCanvas.addEventListener('mouseleave', () => { tooltip.style.display = 'none'; });
+
+  function render() {
+    const length = parseInt(lengthSel.value, 10);
+    const mult = parseFloat(multSel.value);
+    const entryRule = ENTRY_RULES.find(r => r.id === parseInt(entrySel.value, 10));
+    const exitRule = EXIT_RULES.find(r => r.id === parseInt(exitSel.value, 10));
+    const side = sideSel.value;
+    const initialCapital = parseFloat(capitalInput.value) || 10000;
+
+    const { bull, bear } = bullBear(length, mult);
+    const masks = mask(length, mult);
+
+    let trades = [];
+    if (side === 'long' || side === 'both') {
+      trades = trades.concat(simulateBook('long', entryRule.longBit, exitRule.longBit, masks, closes, dates, initialCapital));
+    }
+    if (side === 'short' || side === 'both') {
+      trades = trades.concat(simulateBook('short', entryRule.shortBit, exitRule.shortBit, masks, closes, dates, initialCapital));
+    }
+    trades.sort((a, b) => a.exitIndex - b.exitIndex);
+
+    const candleCtx = candleCanvas.getContext('2d');
+    const indicatorCtx = indicatorCanvas.getContext('2d');
+    drawCandles(candleCtx, opens, highs, lows, closes);
+    drawIndicator(indicatorCtx, bull, bear, dates);
+    drawMarkers(candleCtx, trades, CANDLE_HEIGHT);
+    drawMarkers(indicatorCtx, trades, INDICATOR_HEIGHT);
+
+    renderStats(trades, initialCapital, side);
+    renderTable(trades);
+  }
+
+  [lengthSel, multSel, entrySel, exitSel, sideSel, capitalInput].forEach(el =>
+    el.addEventListener('change', render)
+  );
+  render();
+}
+
+main().catch(err => {
+  document.body.innerHTML = `<div class="empty" style="padding:40px">
+    Failed to load CSV data (${err.message}).<br>
+    Browsers block fetch() of local files opened via file://.<br>
+    Serve this folder over HTTP instead, e.g.:<br>
+    <code>cd bbands && python3 -m http.server 8000</code><br>
+    then open http://localhost:8000/report.html
+  </div>`;
+});
+</script>
+</body>
+</html>
