@@ -46,6 +46,48 @@
     padding: 5px 8px;
     font-size: 12px;
   }
+  .indicator-select { position: relative; }
+  .indicator-select-btn {
+    background: #0d0f16;
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 5px 8px;
+    font-size: 12px;
+    max-width: 220px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    cursor: pointer;
+  }
+  .indicator-select-panel {
+    display: none;
+    position: absolute;
+    top: 100%;
+    right: 0;
+    margin-top: 4px;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 6px;
+    min-width: 240px;
+    z-index: 20;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+  }
+  .indicator-select-panel.open { display: block; }
+  .indicator-option {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 8px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 12px;
+    color: var(--text);
+  }
+  .indicator-option:hover { background: #1f2330; }
+  .indicator-option.locked { cursor: default; color: var(--muted); }
+  .indicator-option.locked:hover { background: transparent; }
   .plan-link {
     font-size: 12px;
     font-weight: 500;
@@ -110,20 +152,7 @@
   .chart-inner canvas { cursor: crosshair; }
   .overlay { position: absolute; top: 0; left: 0; pointer-events: none; }
 
-  .hover-tooltip {
-    position: fixed;
-    display: none;
-    pointer-events: none;
-    background: #1c202c;
-    border: 1px solid var(--border);
-    border-radius: 6px;
-    padding: 6px 10px;
-    font-size: 12px;
-    line-height: 1.5;
-    white-space: nowrap;
-    z-index: 10;
-  }
-  .hover-tooltip .date { color: var(--muted); }
+  .corner-spacer { flex: 0 0 auto; }
 
   .summary { padding: 18px; }
   .stat-row { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 18px; }
@@ -162,7 +191,10 @@
       <option value="line">Line</option>
     </select>
     <select id="coinSel"></select>
-    <select id="indicatorSel" multiple size="1"></select>
+    <div class="indicator-select" id="indicatorSelect">
+      <button type="button" class="indicator-select-btn" id="indicatorSelectBtn"></button>
+      <div class="indicator-select-panel" id="indicatorSelectPanel"></div>
+    </div>
     <a class="plan-link" href="plan.html">View Plan</a>
   </div>
 </h1>
@@ -208,12 +240,7 @@
 </div>
 
 <div class="chart-row">
-  <div class="axis-col">
-    <canvas id="candleAxis"></canvas>
-    <canvas id="indicatorAxis"></canvas>
-    <canvas id="volumeAxis"></canvas>
-  </div>
-  <div class="chart-wrap">
+  <div class="chart-wrap" id="chartWrap">
     <div class="chart-inner" id="chartInner">
       <div class="panel">
         <canvas id="candleCanvas"></canvas>
@@ -227,10 +254,25 @@
         <canvas id="volumeCanvas"></canvas>
         <canvas id="volumeOverlay" class="overlay"></canvas>
       </div>
+      <div class="panel">
+        <canvas id="dateAxis"></canvas>
+        <canvas id="dateAxisOverlay" class="overlay"></canvas>
+      </div>
     </div>
   </div>
+  <div class="axis-col">
+    <div class="panel">
+      <canvas id="candleAxis"></canvas>
+      <canvas id="candleAxisOverlay" class="overlay"></canvas>
+    </div>
+    <div class="panel">
+      <canvas id="indicatorAxis"></canvas>
+      <canvas id="indicatorAxisOverlay" class="overlay"></canvas>
+    </div>
+    <canvas id="volumeAxis"></canvas>
+    <div class="corner-spacer" id="cornerSpacer"></div>
+  </div>
 </div>
-<div class="hover-tooltip" id="hoverTooltip"></div>
 
 <div class="summary">
   <div class="stat-row" id="statRow"></div>
@@ -256,7 +298,8 @@ const COINS = [
   { value: 'eth', label: 'ETH/USDT' },
 ];
 const INDICATORS = [
-  { value: 'bbands_bo', label: 'BBands BO [LuxAlgo]' },
+  { value: 'bbands_bo', label: 'BBands BO [LuxAlgo]', locked: true },
+  { value: 'nw_envelope', label: 'Nadaraya-Watson Envelope [LuxAlgo]' },
 ];
 
 const ENTRY_RULES = [
@@ -276,6 +319,7 @@ const AXIS_WIDTH = 56;
 const CANDLE_HEIGHT = 520;
 const INDICATOR_HEIGHT = 170;
 const VOLUME_HEIGHT = 100;
+const DATE_AXIS_HEIGHT = 24;
 const PANEL_HEIGHTS = [CANDLE_HEIGHT, INDICATOR_HEIGHT, VOLUME_HEIGHT];
 
 function parseCSV(text) {
@@ -308,6 +352,31 @@ function computeHeikinAshi(opens, highs, lows, closes) {
     haLow[i] = Math.min(lows[i], haOpen[i], haClose[i]);
   }
   return { open: haOpen, high: haHigh, low: haLow, close: haClose };
+}
+
+// Nadaraya-Watson Envelope [LuxAlgo] — precomputed in Python
+// (generate_raw_data.py) into the nw_upper/nw_lower columns of
+// data_{coin}_raw.csv. See bbands/Nadaraya-Watson.txt for the spec.
+function drawNadarayaWatson(ctx, upperVals, lowerVals, scale) {
+  const n = upperVals.length;
+
+  function drawSeries(values, color) {
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    let started = false;
+    for (let i = 0; i < n; i++) {
+      const v = values[i];
+      if (v === null) { started = false; continue; }
+      const x = i * PX_PER_BAR + PX_PER_BAR / 2;
+      const y = scale(v);
+      if (!started) { ctx.moveTo(x, y); started = true; } else { ctx.lineTo(x, y); }
+    }
+    ctx.stroke();
+  }
+
+  drawSeries(upperVals, '#14b8a6');
+  drawSeries(lowerVals, '#f87171');
 }
 
 function simulateBook(side, entryBit, exitBit, masks, closes, dates, initialCapital) {
@@ -480,6 +549,44 @@ function drawLinearAxis(ctx, height, maxValue, ticks) {
   ctx.textAlign = 'left';
 }
 
+function invPriceScale(y, height, logMin, logMax) {
+  const frac = (height - y) / height;
+  return Math.exp(logMin + frac * (logMax - logMin));
+}
+
+function invLinearScale(y, height, maxValue) {
+  return ((height - y) / height) * maxValue;
+}
+
+function fmtPriceLabel(v) {
+  return v >= 1000 ? v.toFixed(0) : v.toFixed(2);
+}
+
+function drawCrosshairLabelBox(ctx, width, height, boxW, boxH, left, top, text) {
+  ctx.clearRect(0, 0, width, height);
+  ctx.fillStyle = '#1c202c';
+  ctx.fillRect(left, top, boxW, boxH);
+  ctx.strokeStyle = 'rgba(255,255,255,0.35)';
+  ctx.strokeRect(left + 0.5, top + 0.5, boxW - 1, boxH - 1);
+  ctx.fillStyle = '#e6e8ef';
+  ctx.font = '10px sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillText(text, left + boxW / 2, top + boxH / 2 + 3);
+  ctx.textAlign = 'left';
+}
+
+function drawPriceCrosshairLabel(ctx, height, y, text) {
+  const boxH = 18;
+  const top = Math.min(Math.max(y - boxH / 2, 0), height - boxH);
+  drawCrosshairLabelBox(ctx, AXIS_WIDTH, height, AXIS_WIDTH, boxH, 0, top, text);
+}
+
+function drawDateCrosshairLabel(ctx, width, x, text) {
+  const boxW = 64;
+  const left = Math.min(Math.max(x - boxW / 2, 0), width - boxW);
+  drawCrosshairLabelBox(ctx, width, DATE_AXIS_HEIGHT, boxW, DATE_AXIS_HEIGHT - 4, left, 2, text);
+}
+
 function drawIndicatorPanel(ctx, bulls, bears, dates) {
   const n = bulls.length;
   const width = n * PX_PER_BAR;
@@ -497,13 +604,19 @@ function drawIndicatorPanel(ctx, bulls, bears, dates) {
 
   drawLine(ctx, bulls, yScale, getVar('--entry-long'));
   drawLine(ctx, bears, yScale, getVar('--entry-short'));
+}
 
+function drawDateAxis(ctx, dates) {
+  const n = dates.length;
+  const width = n * PX_PER_BAR;
+  ctx.clearRect(0, 0, width, DATE_AXIS_HEIGHT);
   ctx.fillStyle = 'rgba(230,232,239,0.6)';
   ctx.font = '10px sans-serif';
+  ctx.textAlign = 'left';
   const step = Math.max(1, Math.round(n / 40));
   for (let i = 0; i < n; i += step) {
     if (!dates[i]) continue;
-    ctx.fillText(dates[i].slice(0, 7), i * PX_PER_BAR, INDICATOR_HEIGHT - 4);
+    ctx.fillText(dates[i].slice(0, 7), i * PX_PER_BAR, 15);
   }
 }
 
@@ -612,14 +725,45 @@ async function main() {
   const capitalInput = document.getElementById('capital');
   const chartTypeSel = document.getElementById('chartType');
   const coinSel = document.getElementById('coinSel');
-  const indicatorSel = document.getElementById('indicatorSel');
+  const indicatorSelectBtn = document.getElementById('indicatorSelectBtn');
+  const indicatorSelectPanel = document.getElementById('indicatorSelectPanel');
+  const indicatorSelect = document.getElementById('indicatorSelect');
 
   LENGTHS.forEach(l => lengthSel.add(new Option(l, l)));
   MULTS.forEach(m => multSel.add(new Option(m.toFixed(2), m)));
   ENTRY_RULES.forEach(r => entrySel.add(new Option(`#${r.id} — ${r.label}`, r.id)));
   EXIT_RULES.forEach(r => exitSel.add(new Option(`#${r.id} — ${r.label}`, r.id)));
   COINS.forEach(c => coinSel.add(new Option(c.label, c.value)));
-  INDICATORS.forEach(ind => indicatorSel.add(new Option(ind.label, ind.value, true, true)));
+
+  const selectedIndicators = new Set(INDICATORS.filter(ind => ind.locked).map(ind => ind.value));
+
+  function updateIndicatorSummary() {
+    indicatorSelectBtn.textContent = 'Indicator ▾';
+  }
+
+  indicatorSelectPanel.innerHTML = INDICATORS.map(ind => `
+    <label class="indicator-option ${ind.locked ? 'locked' : ''}" data-value="${ind.value}">
+      <input type="checkbox" ${selectedIndicators.has(ind.value) ? 'checked' : ''} ${ind.locked ? 'disabled' : ''}>
+      ${ind.label}
+    </label>`).join('');
+
+  indicatorSelectPanel.querySelectorAll('.indicator-option:not(.locked) input').forEach(input => {
+    input.addEventListener('change', (e) => {
+      const value = e.target.closest('.indicator-option').dataset.value;
+      if (e.target.checked) selectedIndicators.add(value); else selectedIndicators.delete(value);
+      updateIndicatorSummary();
+      render();
+    });
+  });
+
+  indicatorSelectBtn.addEventListener('click', () => {
+    indicatorSelectPanel.classList.toggle('open');
+  });
+  document.addEventListener('click', (e) => {
+    if (!indicatorSelect.contains(e.target)) indicatorSelectPanel.classList.remove('open');
+  });
+
+  updateIndicatorSummary();
 
   const candleCanvas = document.getElementById('candleCanvas');
   const indicatorCanvas = document.getElementById('indicatorCanvas');
@@ -630,17 +774,32 @@ async function main() {
   const candleAxis = document.getElementById('candleAxis');
   const indicatorAxis = document.getElementById('indicatorAxis');
   const volumeAxis = document.getElementById('volumeAxis');
+  const candleAxisOverlay = document.getElementById('candleAxisOverlay');
+  const indicatorAxisOverlay = document.getElementById('indicatorAxisOverlay');
+  const dateAxis = document.getElementById('dateAxis');
+  const dateAxisOverlay = document.getElementById('dateAxisOverlay');
   const chartInner = document.getElementById('chartInner');
-  const tooltip = document.getElementById('hoverTooltip');
+  const chartWrap = document.getElementById('chartWrap');
+  const cornerSpacer = document.getElementById('cornerSpacer');
+
+  cornerSpacer.style.height = `${DATE_AXIS_HEIGHT}px`;
+
+  chartWrap.addEventListener('wheel', (e) => {
+    e.preventDefault();
+    chartWrap.scrollLeft += e.deltaY;
+  }, { passive: false });
 
   candleAxis.width = AXIS_WIDTH; candleAxis.height = CANDLE_HEIGHT;
   indicatorAxis.width = AXIS_WIDTH; indicatorAxis.height = INDICATOR_HEIGHT;
   volumeAxis.width = AXIS_WIDTH; volumeAxis.height = VOLUME_HEIGHT;
+  candleAxisOverlay.width = AXIS_WIDTH; candleAxisOverlay.height = CANDLE_HEIGHT;
+  indicatorAxisOverlay.width = AXIS_WIDTH; indicatorAxisOverlay.height = INDICATOR_HEIGHT;
 
   function resizeCanvases(n) {
     const width = n * PX_PER_BAR;
     [[candleCanvas, CANDLE_HEIGHT], [indicatorCanvas, INDICATOR_HEIGHT], [volumeCanvas, VOLUME_HEIGHT],
-     [candleOverlay, CANDLE_HEIGHT], [indicatorOverlay, INDICATOR_HEIGHT], [volumeOverlay, VOLUME_HEIGHT]]
+     [candleOverlay, CANDLE_HEIGHT], [indicatorOverlay, INDICATOR_HEIGHT], [volumeOverlay, VOLUME_HEIGHT],
+     [dateAxis, DATE_AXIS_HEIGHT], [dateAxisOverlay, DATE_AXIS_HEIGHT]]
       .forEach(([canvas, h]) => { canvas.width = width; canvas.height = h; });
   }
 
@@ -663,6 +822,8 @@ async function main() {
     state.lows = col(raw, 'low', parseFloat);
     state.closes = col(raw, 'close', parseFloat);
     state.volumes = col(raw, 'volume', parseFloat);
+    state.nwUpper = col(raw, 'nw_upper', parseFloat);
+    state.nwLower = col(raw, 'nw_lower', parseFloat);
     state.heikin = computeHeikinAshi(state.opens, state.highs, state.lows, state.closes);
     state.n = state.dates.length;
     resizeCanvases(state.n);
@@ -680,6 +841,15 @@ async function main() {
     return col(state.proc, key, v => parseInt(v, 10));
   }
 
+  function clearCrosshair() {
+    [candleOverlay, indicatorOverlay, volumeOverlay].forEach((canvas, idx) => {
+      canvas.getContext('2d').clearRect(0, 0, canvas.width, PANEL_HEIGHTS[idx]);
+    });
+    candleAxisOverlay.getContext('2d').clearRect(0, 0, AXIS_WIDTH, CANDLE_HEIGHT);
+    indicatorAxisOverlay.getContext('2d').clearRect(0, 0, AXIS_WIDTH, INDICATOR_HEIGHT);
+    dateAxisOverlay.getContext('2d').clearRect(0, 0, dateAxisOverlay.width, DATE_AXIS_HEIGHT);
+  }
+
   chartInner.addEventListener('mousemove', (e) => {
     const rect = chartInner.getBoundingClientRect();
     const x = e.clientX - rect.left;
@@ -691,7 +861,7 @@ async function main() {
     const xCenter = i * PX_PER_BAR + PX_PER_BAR / 2;
     const overlays = [candleOverlay, indicatorOverlay, volumeOverlay];
 
-    let panelIdx = 0, localY = y, acc = 0;
+    let panelIdx = -1, localY = 0, acc = 0;
     for (let p = 0; p < PANEL_HEIGHTS.length; p++) {
       if (y < acc + PANEL_HEIGHTS[p]) { panelIdx = p; localY = y - acc; break; }
       acc += PANEL_HEIGHTS[p];
@@ -701,7 +871,8 @@ async function main() {
       const ctx = canvas.getContext('2d');
       const h = PANEL_HEIGHTS[idx];
       ctx.clearRect(0, 0, width, h);
-      ctx.strokeStyle = 'rgba(255,255,255,0.35)';
+      ctx.strokeStyle = 'rgba(255,255,255,0.5)';
+      ctx.setLineDash([2, 3]);
       ctx.beginPath();
       ctx.moveTo(xCenter, 0);
       ctx.lineTo(xCenter, h);
@@ -712,22 +883,26 @@ async function main() {
         ctx.lineTo(width, localY);
         ctx.stroke();
       }
+      ctx.setLineDash([]);
     });
 
-    tooltip.innerHTML = `<div class="date">${state.dates[i]}</div>` +
-      `O ${fmtMoney(state.opens[i])} &nbsp; H ${fmtMoney(state.highs[i])}<br>` +
-      `L ${fmtMoney(state.lows[i])} &nbsp; C ${fmtMoney(state.closes[i])}`;
-    tooltip.style.left = `${e.clientX + 14}px`;
-    tooltip.style.top = `${e.clientY + 14}px`;
-    tooltip.style.display = 'block';
+    const candleAxisCtx = candleAxisOverlay.getContext('2d');
+    const indicatorAxisCtx = indicatorAxisOverlay.getContext('2d');
+    candleAxisCtx.clearRect(0, 0, AXIS_WIDTH, CANDLE_HEIGHT);
+    indicatorAxisCtx.clearRect(0, 0, AXIS_WIDTH, INDICATOR_HEIGHT);
+
+    if (panelIdx === 0 && state.priceLogMin !== undefined) {
+      const price = invPriceScale(localY, CANDLE_HEIGHT, state.priceLogMin, state.priceLogMax);
+      drawPriceCrosshairLabel(candleAxisCtx, CANDLE_HEIGHT, localY, fmtPriceLabel(price));
+    } else if (panelIdx === 1) {
+      const value = invLinearScale(localY, INDICATOR_HEIGHT, 100);
+      drawPriceCrosshairLabel(indicatorAxisCtx, INDICATOR_HEIGHT, localY, value.toFixed(0));
+    }
+
+    drawDateCrosshairLabel(dateAxisOverlay.getContext('2d'), width, xCenter, state.dates[i]);
   });
 
-  chartInner.addEventListener('mouseleave', () => {
-    tooltip.style.display = 'none';
-    [candleOverlay, indicatorOverlay, volumeOverlay].forEach((canvas, idx) => {
-      canvas.getContext('2d').clearRect(0, 0, canvas.width, PANEL_HEIGHTS[idx]);
-    });
-  });
+  chartInner.addEventListener('mouseleave', clearCrosshair);
 
   function render() {
     const length = parseInt(lengthSel.value, 10);
@@ -758,13 +933,20 @@ async function main() {
     const indicatorCtx = indicatorCanvas.getContext('2d');
     const volumeCtx = volumeCanvas.getContext('2d');
 
-    const { logMin, logMax } = drawPricePanel(candleCtx, ...priceSource, chartType);
+    const { scale, logMin, logMax } = drawPricePanel(candleCtx, ...priceSource, chartType);
+    state.priceLogMin = logMin;
+    state.priceLogMax = logMax;
     drawIndicatorPanel(indicatorCtx, bull, bear, state.dates);
     drawVolumePanel(volumeCtx, state.volumes, state.opens, state.closes);
+    drawDateAxis(dateAxis.getContext('2d'), state.dates);
 
     drawPriceAxis(candleAxis.getContext('2d'), logMin, logMax, CANDLE_HEIGHT);
     drawLinearAxis(indicatorAxis.getContext('2d'), INDICATOR_HEIGHT, 100, 5);
     volumeAxis.getContext('2d').clearRect(0, 0, AXIS_WIDTH, VOLUME_HEIGHT);
+
+    if (selectedIndicators.has('nw_envelope')) {
+      drawNadarayaWatson(candleCtx, state.nwUpper, state.nwLower, scale);
+    }
 
     drawMarkers(candleCtx, trades, CANDLE_HEIGHT);
     drawMarkers(indicatorCtx, trades, INDICATOR_HEIGHT);
