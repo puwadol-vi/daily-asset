@@ -133,3 +133,83 @@ bbands/
 - **Week boundary:** Binance weekly candle close (Monday 00:00 UTC) — confirm this is the intended "close_date".
 - **Initial capital value:** need an actual number for the `current capital` column starting point.
 - **Hedge-mode display:** confirmed assumption above (two independent books) — flag if wrong.
+
+## 9. Iteration 2
+
+Planning only — nothing implemented yet. One subsection per requested item, flagging assumptions inline so you can correct before I build.
+
+### 9.1 Extend Length / Mult ranges
+
+- **Length**: `[7,8,9,10]` → `[7,8,9,10,11,12,13,14]` (8 values, matches "7-14" literally).
+- **Mult**: (corrected) just one addition — `[0.10,0.15,0.20,0.25,0.30]` (5 values).
+- Impact: `generate_raw_data.py`/`generate_process_data.py` `LENGTHS`/`MULTS` arrays grow → `data_{coin}_raw.csv` goes from 32 to 8×5×2=80 bull/bear columns, `data_{coin}_process.csv` from 16 to 40 mask columns. Dropdowns in `index.html` already populate from these arrays, so no markup change needed there.
+
+### 9.2 Fixed left-side price/value axis
+
+Currently there's no y-axis at all (an earlier attempt drew repeating labels on the scrollable canvas itself and was reverted). New approach: split each chart into two canvases side by side — a narrow **fixed** axis gutter (outside the horizontal scroll container) + the existing scrollable plot canvas. Both use the same `scale()` function so gridline labels in the gutter always line up with the plot, regardless of scroll position.
+
+- Candle chart: price axis (log scale, matches current candle scaling).
+- Indicator chart: 0–100 axis (bull/bear range).
+
+### 9.3 Hover popup → full OHLC, plus a locating grid
+
+- Tooltip currently shows `date, close`. Change to `date, O, H, L, C`.
+- Add faint gridlines (vertical per N bars, horizontal at axis ticks from §9.2) directly on the plot canvases so it's easy to see which bar/price level the cursor is over.
+- Also highlight the hovered bar's column (thin vertical band) so the target bar is unambiguous even when zoomed out.
+
+### 9.4 Chart type selector: Candle / Heikin-Ashi / Line
+
+New dropdown next to the existing controls. Heikin-Ashi computed from the real OHLC already in `raw_data.csv`:
+
+```
+haClose = (O + H + L + C) / 4
+haOpen  = (prevHaOpen + prevHaClose) / 2   (seed: haOpen[0] = (O[0]+C[0])/2)
+haHigh  = max(H, haOpen, haClose)
+haLow   = min(L, haOpen, haClose)
+```
+
+Line mode: plain polyline of `close`, no bodies/wicks. Note: the BBands BO indicator itself always computes off real `close` (per `script.txt`) regardless of display mode — only the candle-chart _rendering_ changes.
+
+### 9.5 Synced crosshair between candle chart and indicator chart
+
+Moving the mouse over either chart draws a vertical crosshair line at that bar's x-position on **both** charts simultaneously (plus a horizontal line + value readout on whichever chart is actually under the cursor). Implementation: an overlay `<canvas>` per chart, positioned on top of the existing plot canvas, redrawn on every `mousemove` — so we're not re-rendering the full candle/indicator chart per pixel of mouse movement, just the thin crosshair layer.
+
+### 9.6 (Not building now) Forward-test / signal / overview page
+
+Noted as a future separate page (forward test, live signal, coin overview + performance) — out of scope for this change, just flagging that I understood it's coming.
+
+### 9.7 Volume panel
+
+New third chart panel below the indicator (bbands) chart: volume bars from `raw_data.csv`'s `volume` column, same up/down coloring as the candle chart, sharing the same x-axis/scroll as the other two panels. Linear y-scale (0 to max volume in the dataset) unless you want log here too.
+
+### 9.8 Three-stage data pipeline, per coin
+
+Splits the current 2-stage pipeline (`generate_raw_data.py` fetches from ccxt _and_ computes bull/bear in one script) into 3 stages, so re-tuning indicator math never re-hits the exchange API. Filenames get a coin prefix:
+
+```
+data_{coin}_price.csv     # NEW — raw OHLCV only, straight from ccxt (close_date,open,high,low,close,volume)
+data_{coin}_raw.csv       # bull/bear per (length,mult) combo — same columns as today's raw_data.csv, just coin-prefixed
+data_{coin}_process.csv   # 8-bit signal mask per combo — unchanged logic, coin-prefixed
+```
+
+- `generate_price_data.py` — the only script that calls `ccxt`. Fetches full weekly OHLCV history for a given coin → `data_{coin}_price.csv`.
+- `generate_raw_data.py` — reads `data_{coin}_price.csv` (no network), computes bull/bear per combo → `data_{coin}_raw.csv`. Column layout unchanged from today, just reads from the cached price file instead of fetching.
+- `generate_process_data.py` — unchanged logic, reads `data_{coin}_raw.csv` → `data_{coin}_process.csv`.
+
+Re-running the indicator math (e.g. after the length/mult range change in §9.1) is now just `generate_raw_data.py` + `generate_process_data.py` — no re-fetch, no rate-limit risk.
+
+### 9.9 Add ETH
+
+`generate_price_data.py` takes a coin/symbol argument (`BTC/USDT`, `ETH/USDT`) and is run once per coin, producing `data_btc_price.csv` and `data_eth_price.csv` (and downstream `data_btc_raw.csv`/`data_btc_process.csv`, `data_eth_raw.csv`/`data_eth_process.csv`). `index.html` gets a **Select Coin** dropdown (BTC / ETH) that switches which trio of CSVs it fetches.
+
+### 9.10 Indicator selector (future-proofing)
+
+New **Select Indicator** control — a multi-select dropdown (>1 selectable at once) in anticipation of more indicators later. For now it has exactly one option, "BBands BO [LuxAlgo]", pre-selected. No behavior change yet since there's nothing else to select — this is scaffolding so adding indicator #2 later doesn't require reworking the controls layout.
+
+### 9.11 Control placement fix
+
+New controls — **Chart Type** (§9.4), **Select Coin** (§9.9), **Select Indicator** (§9.10) — go in the header row, next to the existing **View Plan** button (i.e. in `<h1>`, not in the `.controls` bar below where Length/Mult/Entry Rule/Exit Rule/Side/Initial Capital already live).
+
+---
+
+Let me know if this matches, then I'll implement §9 end to end.

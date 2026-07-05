@@ -1,43 +1,17 @@
-"""Fetch BTC/USDT weekly candles and compute BBands BO [LuxAlgo] bull/bear
-values for every (length, mult) combo into bbands/raw_data.csv.
+"""Compute BBands BO [LuxAlgo] bull/bear values for every (length, mult)
+combo from bbands/data_{coin}_price.csv into bbands/data_{coin}_raw.csv.
 
-See bbands/plan.md and bbands/script.txt for the indicator spec.
+No network access — run generate_price_data.py first. See bbands/plan.md
+and bbands/script.txt for the indicator spec.
 """
-import ccxt
+import argparse
 import pandas as pd
 import pandas_ta as ta
 from pathlib import Path
 
+from config import COINS, LENGTHS, MULTS
+
 DIR = Path(__file__).parent
-OUT = DIR / 'raw_data.csv'
-
-SYMBOL = 'BTC/USDT'
-TIMEFRAME = '1w'
-LENGTHS = [7, 8, 9, 10]
-MULTS = [0.10, 0.15, 0.20, 0.25]
-
-
-def fetch_all_ohlcv() -> list:
-    exchange = ccxt.binance({'enableRateLimit': True})
-    since = exchange.parse8601('2017-01-01T00:00:00Z')
-    rows = []
-    while True:
-        batch = exchange.fetch_ohlcv(SYMBOL, TIMEFRAME, since=since, limit=1000)
-        if not batch:
-            break
-        rows += batch
-        last_ts = batch[-1][0]
-        if last_ts == since or len(batch) < 1000:
-            break
-        since = last_ts + 1
-    return rows
-
-
-def build_dataframe(rows: list) -> pd.DataFrame:
-    df = pd.DataFrame(rows, columns=['timestamp', 'open', 'high', 'low', 'close', 'volume'])
-    df = df.drop_duplicates(subset='timestamp').sort_values('timestamp').reset_index(drop=True)
-    df['close_date'] = pd.to_datetime(df['timestamp'], unit='ms', utc=True).dt.strftime('%Y-%m-%d')
-    return df
 
 
 def bull_bear(close: pd.Series, length: int, mult: float) -> tuple[pd.Series, pd.Series]:
@@ -67,8 +41,12 @@ def bull_bear(close: pd.Series, length: int, mult: float) -> tuple[pd.Series, pd
 
 
 def main() -> None:
-    rows = fetch_all_ohlcv()
-    df = build_dataframe(rows)
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--coin', choices=COINS, default='btc')
+    args = parser.parse_args()
+
+    price_path = DIR / f'data_{args.coin}_price.csv'
+    df = pd.read_csv(price_path)
 
     out = pd.DataFrame({
         'close_date': df['close_date'],
@@ -84,8 +62,9 @@ def main() -> None:
             out[f'bull_{length}_{mult:.2f}'] = bull.round(4)
             out[f'bear_{length}_{mult:.2f}'] = bear.round(4)
 
-    out.to_csv(OUT, index=False)
-    print(f'Wrote {len(out)} rows to {OUT}')
+    out_path = DIR / f'data_{args.coin}_raw.csv'
+    out.to_csv(out_path, index=False)
+    print(f'Wrote {len(out)} rows to {out_path}')
 
 
 if __name__ == '__main__':

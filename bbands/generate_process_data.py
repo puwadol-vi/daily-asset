@@ -1,5 +1,5 @@
-"""Convert bbands/raw_data.csv into an 8-bit weekly signal mask per
-(length, mult) combo -> bbands/process_data.csv.
+"""Convert bbands/data_{coin}_raw.csv into an 8-bit weekly signal mask per
+(length, mult) combo -> bbands/data_{coin}_process.csv.
 
 Bit legend (see bbands/plan.md section 3):
   0 green_go_pos   G_last==0 and G_this>0
@@ -11,15 +11,13 @@ Bit legend (see bbands/plan.md section 3):
   6 green_go_zero  G_last>0 and G_this==0
   7 red_go_zero    R_last>0 and R_this==0
 """
+import argparse
 import pandas as pd
 from pathlib import Path
 
-DIR = Path(__file__).parent
-IN = DIR / 'raw_data.csv'
-OUT = DIR / 'process_data.csv'
+from config import COINS, LENGTHS, MULTS
 
-LENGTHS = [7, 8, 9, 10]
-MULTS = [0.10, 0.15, 0.20, 0.25]
+DIR = Path(__file__).parent
 
 BIT_GREEN_GO_POS = 1 << 0
 BIT_RED_GO_POS = 1 << 1
@@ -49,7 +47,13 @@ def combo_mask(g: pd.Series, r: pd.Series) -> pd.Series:
 
 
 def main() -> None:
-    df = pd.read_csv(IN)
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--coin', choices=COINS, default='btc')
+    args = parser.parse_args()
+
+    raw_path = DIR / f'data_{args.coin}_raw.csv'
+    df = pd.read_csv(raw_path)
+
     out = pd.DataFrame({'date': df['close_date']})
     for length in LENGTHS:
         for mult in MULTS:
@@ -57,8 +61,9 @@ def main() -> None:
             r = df[f'bear_{length}_{mult:.2f}']
             out[f'{length}_{mult:.2f}'] = combo_mask(g, r)
 
-    out.to_csv(OUT, index=False)
-    print(f'Wrote {len(out)} rows to {OUT}')
+    out_path = DIR / f'data_{args.coin}_process.csv'
+    out.to_csv(out_path, index=False)
+    print(f'Wrote {len(out)} rows to {out_path}')
 
 
 if __name__ == '__main__':
