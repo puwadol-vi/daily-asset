@@ -1,0 +1,157 @@
+Snowball strategy -- reference reading list
+=============================================
+Each entry maps to ONE piece of the Snowball design (trend strength, momentum
+strength, discount, dynamic leverage, pyramid scale-in, advantage-point entry,
+dp/dv confirmation, limited-risk compounding) so they can be read
+independently and combined afterward.
+
+---
+
+1. Strength of trend
+---------------------
+"Time Series Momentum"
+Moskowitz, Ooi & Pedersen (2012), Journal of Financial Economics
+
+Tests trend persistence (1-12 months) across 58 futures markets in equities,
+currencies, commodities, bonds. Establishes that "has this asset been
+trending" is a real, cross-asset, abnormal-return signal on its own -- the
+core academic basis for the "strength of trend" leg of Snowball. Best during
+extreme markets, which is directly relevant to why the strategy wants to be
+able to lean in hard when a trend is confirmed.
+
+- https://papers.ssrn.com/sol3/papers.cfm?abstract_id=2089463
+- https://w4.stern.nyu.edu/facdir/lpederse/papers/TimeSeriesMomentum.pdf
+
+
+2. Strength of movement / momentum
+------------------------------------
+"Returns to Buying Winners and Selling Losers: Implications for Stock Market
+Efficiency"
+Jegadeesh & Titman (1993), The Journal of Finance
+
+The original momentum paper: buying past 3-12 month winners and selling past
+losers produces consistent forward returns. Read this for the "momentum" leg
+specifically as magnitude-of-past-move, separate from trend-following's
+time-series framing above -- useful for calibrating what counts as a
+strong-enough move to trust.
+
+- https://onlinelibrary.wiley.com/doi/abs/10.1111/j.1540-6261.1993.tb04702.x
+- https://www.bauer.uh.edu/rsusmel/phd/jegadeesh-titman93.pdf
+
+
+3. Discount (distance from mean) -- two takes on the same idea
+-----------------------------------------------------------------
+"Price distance to moving averages and subsequent returns"
+Alajbeg, Bubas & Vasic (2017), International Journal of Economics, Commerce
+and Management
+
+Simple, single-MA framing: the further price sits below (above) a moving
+average, the more subsequent mean-reversion shows up. Closest match to
+Snowball's literal "discount = price deviated from Fair Value/mean" concept.
+
+- https://www.researchgate.net/publication/353120123_Price_distance_to_moving_averages_and_subsequent_returns
+- https://ijecm.co.uk/wp-content/uploads/2017/12/5123.pdf
+
+"Moving Average Distance as a Predictor of Equity Returns"
+Avramov, Kaplanski & Subrahmanyam (2021), Review of Financial Economics
+
+Uses the spread between a short and a long moving average (not price vs. one
+MA) as the predictor -- structurally the same object as an EMA12-vs-EMA26
+Action Zone distance, so this is worth reading specifically for how to turn
+that spread into a sized signal rather than just a binary cross.
+
+- https://ideas.repec.org/a/wly/revfec/v39y2021i2p127-145.html
+
+
+4. Dynamic leverage adjustment using volatility
+---------------------------------------------------
+"Volatility-Managed Portfolios"
+Moreira & Muir (2017), The Journal of Finance
+
+The direct academic source for exactly this phrase. Shows that scaling
+exposure down when realized volatility is high (and up when it's low) raises
+Sharpe ratios and produces large utility gains, across equities, value,
+momentum, and other factors. This is the paper to read for the
+mechanics/justification of regime-based dynamic leverage.
+
+- https://amoreira2.github.io/alan-moreira.github.io/VolPortfolios_published.pdf
+- https://papers.ssrn.com/sol3/papers.cfm?abstract_id=2659431
+
+
+5. Pyramid trading -- how to scale in
+----------------------------------------
+"Position Sizing in Trend-Following: Comparing Volatility Targeting,
+Volatility Parity, and Pyramiding"
+Concretum Group (practitioner research, not peer-reviewed, but directly
+on-topic)
+
+Compares three position-sizing engines head-to-head, one of which is
+pyramiding: adding contracts as a trend extends by multiples of the initial
+risk distance, sized so each layer contributes less risk than the one
+before. The most direct source on frequency and sizing of pyramid adds
+specifically.
+
+- https://concretumgroup.com/position-sizing-in-trend-following-comparing-volatility-targeting-volatility-parity-and-pyramiding/
+
+
+6. Entry at the advantage point (breakout from undervalue)
+---------------------------------------------------------------
+Turtle Trading System / Donchian Channel breakouts
+Richard Dennis & William Eckhardt (1980s; widely documented, e.g.
+"Research on Quantitative Trading Strategies Based on the Turtle Trading
+Rule", ResearchGate, 2023)
+
+Not a single peer-reviewed paper but the canonical source for "don't buy the
+low, buy the breakout out of the base" -- a 20-day-high entry confirmed only
+after price has already started moving, with ATR-based sizing. The
+practitioner precedent for Snowball's "E1 explosion point" entry rule.
+
+- https://www.researchgate.net/publication/370698720_Research_on_Quantitative_Trading_Strategies_Based_on_the_Turtle_Trading_Rule
+
+
+7. dp + dv (delta price, delta volume)
+------------------------------------------
+"Price Momentum and Trading Volume"
+Lee & Swaminathan (2000), The Journal of Finance
+
+Studies the joint distribution of future returns conditional on both past
+returns and past trading volume -- i.e., exactly the dp+dv pairing, not
+price or volume in isolation. Findings: volume changes the interpretation of
+a momentum signal (high-volume winners behave differently from low-volume
+winners) -- the empirical basis for using volume as a confirmation filter
+rather than a standalone signal.
+
+- https://www.lsvasset.com/pdf/research-papers/Price-Momentum-Trad-Vol-2000.pdf
+
+
+8. Limited risk, high return via compounding over distance/time
+----------------------------------------------------------------------
+Kelly Criterion / fractional Kelly literature
+Start with Wikipedia's "Kelly criterion" for the map, then either the
+original Kelly (1956) framing or the more recent "Optimal Betting: Beyond
+the Long-Term Growth" (arXiv, 2025)
+
+The formal treatment of "small linear risk per bet, geometric compounding
+over many bets" -- the mathematical backbone of "limit risk, high return."
+Fractional Kelly (half-Kelly, quarter-Kelly) is the standard practitioner
+adjustment for model uncertainty, relevant to sizing a fixed initial risk
+unit.
+
+- https://en.wikipedia.org/wiki/Kelly_criterion
+- https://arxiv.org/html/2503.17927v1
+
+
+Bonus -- ties discount + momentum together as one system
+=============================================================
+"Value and Momentum Everywhere"
+Asness, Moskowitz & Pedersen (2013), The Journal of Finance
+
+Shows value (~= "discount") and momentum are negatively correlated but both
+independently profitable across eight markets -- empirical support for the
+claim that discount alone isn't an entry signal and momentum alone isn't
+either; you need both, and they complement rather than duplicate each other.
+Good capstone read after the individual-factor papers above.
+
+- https://pages.stern.nyu.edu/~lpederse/papers/ValMomEverywhere.pdf
+- https://papers.ssrn.com/sol3/papers.cfm?abstract_id=2174501
+
