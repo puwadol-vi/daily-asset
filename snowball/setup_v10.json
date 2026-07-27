@@ -1,0 +1,27 @@
+{
+  "asset": "BTC/USDT",
+  "exchange": "Binance USD-M Futures, isolated margin -- same model as V5-V7",
+  "leverage": "Dynamic 3-tier rule, chosen at entry from ADX14 and Action Zone (EMA12/26) state, re-simulated (not just bucket snapshots) across all 5 assets/10 scenarios: action zone bearish -> 2x, REGARDLESS of ADX (red-zone entries underperform at every ADX level, and since margin is 50% of the compounding bank, a liquidation here damages every later entry's size, not just that trade -- extending the cut to ALL red-zone entries, not only low-ADX ones, improved final totals in 8/10 cases when actually re-simulated end to end). Action zone bullish + ADX14 >= 22 -> 5x (already-extended move). Action zone bullish (or unavailable) + ADX14 < 22 -> 10x. Margin = 50% of the current bank (realized), not a fixed $ amount -- size = (margin*leverage)/price, notional = leverage times the margin. Real liquidation risk (MMR=0), checked every bar via the day's low.",
+
+  "source": "snowball/trade/smc.txt -- LuxAlgo's 'Smart Money Concepts' Pine Script indicator, ported to Python. Not the same detector as V8/V9's %-reversal zigzag -- this is a fixed-bar-count forward-confirming fractal (leg()/getCurrentStructure() in the source), plus its BOS/CHoCH trend-bias state machine (displayStructure()).",
+
+  "structures": "Two fully independent detectors, differing only in confirmation window: BIG ('swing' in the source, BIG_SIZE=50 bars -- smc.txt's own swingsLengthInput default) and SMALL ('internal' in the source, SMALL_SIZE=5 bars -- smc.txt's own hardcoded getCurrentStructure(5,...) call, not user-configurable there either). Each maintains its own pivot-high/pivot-low levels and its own running trend bias.",
+
+  "pivot_detection": "A bar `size` bars back is confirmed as a swing HIGH once none of the `size` bars since have made a higher high (mirrors smc.txt's `high[size] > ta.highest(size)`); symmetric for swing LOW. This is a deterministic size-bar lag, unlike V8/V9's zigzag whose lag varies with reversal speed. Each confirmed pivot is labeled HH/LH (vs. the previous confirmed high) or HL/LL (vs. the previous confirmed low); the first pivot of each kind is left unlabeled (nothing to compare against).",
+
+  "bos_choch_logic": "Each structure watches for close crossing back above its current pivot-high level (not already crossed since that level was set) -- CHoCH if the structure's trend bias was bearish (a reversal), BOS if it was already bullish (a continuation); bias becomes/stays bullish and the level is marked crossed. Symmetric for a close crossing below the pivot-low level (bearish CHoCH/BOS). SMALL's crossings additionally require its pivot level to differ from BIG's current pivot level at that moment (smc.txt's extraCondition -- suppresses a redundant SMALL announcement sitting on the exact same level as BIG).",
+
+  "entry_logic": "Isolated margin = 50% of the current bank (realized_total), leverage picked by the 3-tier ADX/Action-Zone rule above, fired every time SMALL registers a bullish CHoCH ('small green CHoCH') while flat. Skipped entirely if the bank is at or below zero. BIG's own BOS/CHoCH and SMALL's BOS events are computed and logged for reference/charting only -- they never trigger a position action.",
+
+  "scale_in_logic": "None within a cycle -- a single position per cycle, never added to. Bank-fraction sizing is how gains (and losses) compound ACROSS cycles instead: each new entry's margin is 50% of whatever the bank currently holds, so it grows (or shrinks) with prior cycles' results.",
+
+  "secure_out_logic": "None.",
+
+  "exit_logic": "Full close the moment SMALL registers a bearish CHoCH ('small red CHoCH') while a position is open -- OR a real liquidation first, if the day's low reaches the liquidation price before a CHoCH fires. Not gated by BIG's structure.",
+
+  "tp_logic": "None -- no fixed take-profit level.",
+
+  "sl_logic": "No separate stop order -- the small red CHoCH exit is the voluntary close mechanism (can realize a loss, no floor), and the real liquidation price (entry_price*(1-1/leverage) with MMR=0) is the hard, involuntary floor if price gets there first.",
+
+  "re_entry_logic": "Identical to entry_logic -- the next small green CHoCH while flat re-enters at 50% of the current bank and the ADX-appropriate leverage, same as the first entry. No cooldown."
+}
