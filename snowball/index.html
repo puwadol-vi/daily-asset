@@ -1,0 +1,1011 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Snowball backtest V10</title>
+<style>
+  :root {
+    --bg: #0f1117;
+    --panel: #171a23;
+    --border: #2a2e3a;
+    --text: #e6e8ef;
+    --muted: #8b90a0;
+    --pos: #4ade80;
+    --neg: #f87171;
+    --up: #22c55e;
+    --down: #ef4444;
+    --big-line: #818cf8;
+    --small-line: #fb923c;
+    --liq-price: #f43f5e;
+    --ema20: #f5c542;
+    --entry: #22c55e;
+    --exit: #38bdf8;
+    --liquidation: #ff4d4d;
+    --position-fill: #fb923c;
+    --margin-fill: #22c55e;
+    --total-fill: #4a9eff;
+    --adx: #a78bfa;
+    --diplus: #22c55e;
+    --diminus: #ef4444;
+    --font-mono: ui-monospace,"SF Mono","Cascadia Mono","JetBrains Mono",Consolas,"Liberation Mono",monospace;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;
+    font-size: 14px;
+  }
+  h1 {
+    font-size: 16px;
+    font-weight: 600;
+    margin: 0;
+    padding: 14px 18px;
+    border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; gap: 10px;
+  }
+  h1 .path { font-family: var(--font-mono); color: var(--muted); font-weight: 400; }
+
+  #loader { color: var(--muted); font-size: 13px; padding: 14px 18px; }
+  #loader button {
+    margin-top: .75rem; background: var(--text); color: var(--bg); border: none; border-radius: 6px;
+    padding: .5rem 1rem; font-size: .85rem; font-weight: 600; cursor: pointer;
+  }
+  #file-input { display: none; }
+
+  #app { display: none; }
+
+  .legend {
+    display: flex; gap: 18px; flex-wrap: wrap; padding: 10px 18px;
+    font-size: 12px; color: var(--muted); border-bottom: 1px solid var(--border);
+  }
+  .legend span { display: inline-flex; align-items: center; gap: 6px; }
+  .swatch { width: 10px; height: 10px; border-radius: 2px; display: inline-block; }
+  .swatch.line { border-radius: 0; height: 2px; }
+  .swatch.dot { border-radius: 50%; }
+
+  .controls {
+    display: flex; gap: 20px; flex-wrap: wrap; padding: 12px 18px;
+    border-bottom: 1px solid var(--border); background: var(--panel);
+  }
+  .field { display: flex; flex-direction: column; gap: 4px; }
+  .field label {
+    font-size: 10.5px; color: var(--muted); text-transform: uppercase; letter-spacing: .04em;
+  }
+  .field select {
+    background: var(--bg); color: var(--text); border: 1px solid var(--border); border-radius: 6px;
+    padding: 5px 8px; font-size: 12.5px; min-width: 220px;
+  }
+
+  .plan-link {
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--text);
+    text-decoration: none;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 6px 12px;
+    margin-left: auto;
+  }
+  .plan-link:hover { background: #1f2330; }
+  .setup-hover { position: relative; display: inline-flex; }
+  .setup-icon {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 18px; height: 18px; border-radius: 50%; font-size: 14px; line-height: 1;
+    color: var(--muted); cursor: help; font-weight: 400;
+  }
+  .setup-icon:hover { color: var(--text); }
+  .setup-tooltip {
+    display: none; position: absolute; top: 100%; left: 0; margin-top: 8px;
+    width: 560px; max-width: 80vw; max-height: 70vh; overflow-y: auto;
+    background: var(--panel); border: 1px solid var(--border); border-radius: 8px;
+    padding: 14px 16px; box-shadow: 0 8px 24px rgba(0,0,0,0.4); z-index: 50;
+    font-weight: 400; white-space: normal; cursor: auto;
+  }
+  .setup-hover:hover .setup-tooltip,
+  .setup-hover:focus .setup-tooltip,
+  .setup-hover:focus-within .setup-tooltip { display: block; }
+  .setup-title { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; margin-bottom: 8px; }
+  .setup-grid { display: grid; gap: 10px; }
+  .setup-item { font-size: 12.5px; line-height: 1.5; }
+  .setup-item b { color: var(--text); }
+  .setup-item span { color: var(--muted); }
+
+  .readout {
+    display: flex; flex-direction: column; gap: 3px;
+    padding: 6px 18px; font-family: var(--font-mono); font-size: 12px; color: var(--muted);
+    border-bottom: 1px solid var(--border); background: var(--panel); min-height: 52px;
+  }
+  .readout-line { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .readout b { color: var(--text); font-weight: 600; }
+  .readout .action { color: #ffb347; }
+
+  .chart-row { display: flex; border-bottom: 1px solid var(--border); background: #0b0d13; }
+  .axis-col { flex: 0 0 auto; display: flex; flex-direction: column; border-left: 1px solid var(--border); order: 1; }
+  .chart-wrap { overflow-x: auto; overflow-y: hidden; flex: 1 1 auto; position: relative; }
+  .chart-inner { display: block; }
+  .panel { position: relative; }
+  .chart-inner .panel + .panel,
+  .axis-col .panel + .panel { border-top: 2px solid rgba(255,255,255,0.16); }
+  canvas { display: block; }
+  .chart-inner canvas { cursor: crosshair; }
+  .overlay { position: absolute; top: 0; left: 0; pointer-events: none; }
+  .corner-spacer { flex: 0 0 auto; }
+
+  .summary { padding: 18px; }
+  .stat-row { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 18px; }
+  .stat-card {
+    background: var(--panel); border: 1px solid var(--border); border-radius: 8px;
+    padding: 10px 16px; min-width: 130px;
+  }
+  .stat-card .label { font-size: 11px; color: var(--muted); text-transform: uppercase; }
+  .stat-card .value { font-size: 18px; font-weight: 600; margin-top: 2px; }
+
+  .table-scroll { overflow: auto; border: 1px solid var(--border); border-radius: 6px; max-height: 70vh; }
+  table {
+    border-collapse: collapse; font-family: var(--font-mono); font-size: .76rem;
+    font-variant-numeric: tabular-nums; white-space: nowrap;
+  }
+  th, td { padding: .35rem .55rem; border-bottom: 1px solid var(--border); border-right: 1px solid var(--border); text-align: left; }
+  td.num, th.num { text-align: right; }
+  td.pos { color: var(--pos); }
+  td.neg { color: var(--neg); }
+  th {
+    position: sticky; top: 0; background: var(--panel); font-weight: 600;
+    font-size: .68rem; text-transform: uppercase; letter-spacing: .04em; color: var(--muted);
+  }
+  tbody tr:hover { background: var(--panel); }
+
+  /* frozen columns: date, close */
+  th:nth-child(1), td:nth-child(1), th:nth-child(2), td:nth-child(2) {
+    position: sticky; z-index: 1; background: var(--bg);
+  }
+  th:nth-child(1), th:nth-child(2) { z-index: 3; background: var(--panel); }
+  td:nth-child(1), td:nth-child(2) { z-index: 2; }
+  th:nth-child(1), td:nth-child(1) { left: 0; }
+  th:nth-child(2), td:nth-child(2) { left: var(--col1-w, 90px); box-shadow: 2px 0 0 var(--border); }
+  tbody tr:hover td:nth-child(1), tbody tr:hover td:nth-child(2) { background: var(--panel); }
+</style>
+</head>
+<body>
+
+<h1>
+  Snowball backtest V10 <span class="path">&mdash; snowball/backtest/v10/calc_btc.csv &mdash; SMC BOS/CHoCH (smc.txt), 50% of bank as margin @ 2x/5x/10x (ADX + Action Zone scaled) on small green CHoCH, exit on small red CHoCH or liquidation, no compound within a cycle</span>
+  <span class="setup-hover" id="setupHover" tabindex="0">
+    <span class="setup-icon">&#9432;</span>
+    <div class="setup-tooltip" id="setupTooltip">Loading setup&hellip;</div>
+  </span>
+  <a class="plan-link" href="plan.html">View Plan</a>
+</h1>
+
+<div id="loader">
+  <p>Loading calc_btc.csv&hellip;</p>
+  <div id="loader-fallback" style="display:none;">
+    <p>Automatic fetch didn't work (this happens when the page is opened directly as a file, not through a server). Pick the file instead, or drag &amp; drop it anywhere on this page.</p>
+    <button onclick="document.getElementById('file-input').click()">Choose calc_btc.csv</button>
+    <input type="file" id="file-input" accept=".csv" />
+  </div>
+</div>
+
+<div id="app">
+  <div class="summary">
+    <div class="stat-row" id="statRow"></div>
+  </div>
+
+  <div class="controls">
+    <div class="field">
+      <label>Asset</label>
+      <select id="assetSel"></select>
+    </div>
+    <div class="field">
+      <label>Scenario</label>
+      <select id="scenarioSel"></select>
+    </div>
+  </div>
+
+  <div class="legend">
+    Total (stacked area, log) :
+    <span><span class="swatch" style="background:var(--position-fill)"></span>Position (0 .. position)</span>
+    <span><span class="swatch" style="background:var(--margin-fill)"></span>Margin = position + unrealized (position .. margin)</span>
+    <span><span class="swatch" style="background:var(--total-fill)"></span>Total = margin + realized (margin .. total)</span>
+  </div>
+
+  <div class="legend">
+    BIG structure (50-bar fractal, reference only) :
+    <span><span class="swatch line" style="background:var(--big-line)"></span>Zigzag</span>
+    <span style="color:var(--up)">B-HH / B-HL</span>
+    <span style="color:var(--down)">B-LH / B-LL</span>
+    <span style="color:var(--up); font-weight:bold;">BIG CHoCH / BIG BOS</span> (bull, above bar)
+    <span style="color:var(--down); font-weight:bold;">BIG CHoCH / BIG BOS</span> (bear, below bar)
+  </div>
+
+  <div class="legend">
+    SMALL structure (5-bar fractal &mdash; drives the strategy) :
+    <span><span class="swatch line" style="background:var(--small-line)"></span>Zigzag</span>
+    <span style="color:var(--up)">S-HH / S-HL</span>
+    <span style="color:var(--down)">S-LH / S-LL</span>
+    <span style="color:var(--up)">CHoCH / BOS</span> (bull, above bar, small text)
+    <span style="color:var(--down)">CHoCH / BOS</span> (bear, below bar, small text)
+  </div>
+
+  <div class="legend">
+    ADX / DI (raw values, reference only -- not wired into the SMC strategy) :
+    <span><span class="swatch line" style="background:var(--adx)"></span>ADX14</span>
+    <span><span class="swatch line" style="background:var(--diplus)"></span>+DI</span>
+    <span><span class="swatch line" style="background:var(--diminus)"></span>-DI</span>
+  </div>
+
+  <div class="legend">
+    Action Zone (reference only -- not wired into the SMC strategy) :
+    <span><span class="swatch line" style="background:var(--up)"></span>Bullish (EMA12 &gt;= EMA26)</span>
+    <span><span class="swatch line" style="background:var(--down)"></span>Bearish (EMA12 &lt; EMA26)</span>
+    <span>dot = flip</span>
+  </div>
+
+  <div class="legend">
+    Candle :
+    <span><span class="swatch line" style="background:var(--ema20)"></span>EMA20</span>
+    <span><span class="swatch line" style="background:var(--liq-price)"></span>Liquidate price (dashed, MMR=0)</span>
+  </div>
+
+  <div class="legend">
+    Verticle Line (drawn across every panel) :
+    <span><span class="swatch" style="background:var(--entry)"></span>Entry (50% of bank as margin, 2x/5x/10x by ADX+Action Zone, small green CHoCH)</span>
+    <span><span class="swatch" style="background:var(--exit)"></span>Exit (voluntary, small red CHoCH)</span>
+    <span><span class="swatch" style="background:var(--liquidation)"></span>Liquidation (forced, margin wiped)</span>
+  </div>
+
+  <div id="readoutTop" class="readout">Hover the chart to inspect a day.</div>
+
+  <div class="chart-row">
+    <div class="chart-wrap" id="chartWrap">
+      <div class="chart-inner" id="chartInner">
+        <div class="panel">
+          <canvas id="totalCanvas"></canvas>
+          <canvas id="totalOverlay" class="overlay"></canvas>
+        </div>
+        <div class="panel">
+          <canvas id="indicatorCanvas"></canvas>
+          <canvas id="indicatorOverlay" class="overlay"></canvas>
+        </div>
+        <div class="panel">
+          <canvas id="actionZoneCanvas"></canvas>
+          <canvas id="actionZoneOverlay" class="overlay"></canvas>
+        </div>
+        <div class="panel">
+          <canvas id="candleCanvas"></canvas>
+          <canvas id="candleOverlay" class="overlay"></canvas>
+        </div>
+        <div class="panel">
+          <canvas id="dateAxis"></canvas>
+          <canvas id="dateAxisOverlay" class="overlay"></canvas>
+        </div>
+      </div>
+    </div>
+    <div class="axis-col">
+      <div class="panel"><canvas id="totalAxis"></canvas><canvas id="totalAxisOverlay" class="overlay"></canvas></div>
+      <div class="panel"><canvas id="indicatorAxis"></canvas><canvas id="indicatorAxisOverlay" class="overlay"></canvas></div>
+      <div class="panel" style="height:10px;"></div>
+      <div class="panel"><canvas id="candleAxis"></canvas><canvas id="candleAxisOverlay" class="overlay"></canvas></div>
+      <div class="corner-spacer" id="cornerSpacer"></div>
+    </div>
+  </div>
+
+  <div id="readoutBottom" class="readout">Hover the chart to inspect a day.</div>
+
+  <div class="summary">
+    <div class="table-scroll">
+      <table id="data-table"></table>
+    </div>
+  </div>
+</div>
+
+<script>
+// ---------------------------------------------------------------------------
+// Layout constants
+// ---------------------------------------------------------------------------
+const PX_PER_BAR = 8;
+const AXIS_WIDTH = 64;
+const CANDLE_HEIGHT = 780;
+const TOTAL_HEIGHT = 260;
+const INDICATOR_HEIGHT = 150;
+const ACTIONZONE_HEIGHT = 10;
+const DATE_AXIS_HEIGHT = 24;
+const ADX_LEVEL = 20;
+const PANEL_HEIGHTS = [TOTAL_HEIGHT, INDICATOR_HEIGHT, ACTIONZONE_HEIGHT, CANDLE_HEIGHT];
+
+// Scenario start dates are auto-detected per asset (first small green CHoCH
+// on/after a fixed cutoff -- see generate_calc_csv_v10.py), so there's no
+// fixed date here: parseState finds each scenario's actual start date by
+// scanning for its first "ENTRY @" row.
+const SCENARIO_KEYS = [
+  { key: "a", label: "A (from mid-2022)" },
+  { key: "b", label: "B (from early 2023)" },
+];
+
+const ASSETS_META = [
+  { key: "btc", label: "BTC/USDT", file: "calc_btc.csv" },
+  { key: "eth", label: "ETH/USDT", file: "calc_eth.csv" },
+  { key: "bnb", label: "BNB/USDT", file: "calc_bnb.csv" },
+  { key: "sol", label: "SOL/USDT", file: "calc_sol.csv" },
+  { key: "xrp", label: "XRP/USDT", file: "calc_xrp.csv" },
+];
+
+const CATEGORIES = [
+  { key: "liquidation", color: "var(--liquidation)", test: a => a.includes("LIQUIDATION EVENT") },
+  { key: "exit",        color: "var(--exit)",        test: a => a.includes("EXIT @") },
+  { key: "entry",        color: "var(--entry)",       test: a => a.includes("ENTRY @") },
+];
+function classify(action){
+  if(!action) return [];
+  return CATEGORIES.filter(c => c.test(action));
+}
+
+// ---------------------------------------------------------------------------
+// CSV parsing (quote-aware -- action text contains commas)
+// ---------------------------------------------------------------------------
+function parseCSV(text){
+  const rows = [];
+  let row = [], field = "", inQuotes = false;
+  for(let i=0;i<text.length;i++){
+    const c = text[i], next = text[i+1];
+    if(inQuotes){
+      if(c === '"' && next === '"'){ field += '"'; i++; }
+      else if(c === '"'){ inQuotes = false; }
+      else { field += c; }
+    } else {
+      if(c === '"'){ inQuotes = true; }
+      else if(c === ','){ row.push(field); field = ""; }
+      else if(c === '\r'){ /* skip */ }
+      else if(c === '\n'){ row.push(field); rows.push(row); row = []; field = ""; }
+      else { field += c; }
+    }
+  }
+  if(field.length || row.length){ row.push(field); rows.push(row); }
+  if(rows.length && rows[rows.length-1].length === 1 && rows[rows.length-1][0] === "") rows.pop();
+  return rows;
+}
+function col(header, body, name, parser){
+  const idx = header.indexOf(name);
+  if(idx === -1) throw new Error("CSV missing column: " + name);
+  return body.map(r => { const v = r[idx]; if(v === undefined || v === "") return null; return parser ? parser(v) : v; });
+}
+function escapeHTML(s){ return s.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;"); }
+function cssVar(name){ return getComputedStyle(document.documentElement).getPropertyValue(name).trim(); }
+
+// ---------------------------------------------------------------------------
+// Canvas drawing helpers
+// ---------------------------------------------------------------------------
+function drawGrid(ctx, width, height, numH, vStep){
+  ctx.strokeStyle = 'rgba(255,255,255,0.06)';
+  ctx.lineWidth = 1;
+  for(let g=1; g<numH; g++){
+    const y = height * (g/numH);
+    ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(width,y); ctx.stroke();
+  }
+  for(let x=0; x<width; x+=vStep){
+    ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,height); ctx.stroke();
+  }
+}
+function computeLogScale(values, height, pad=1.04, forcedMin=null){
+  const valid = values.filter(v => v !== null && v > 0);
+  const yMax = Math.max(...valid) * pad;
+  const yMin = forcedMin !== null ? Math.min(forcedMin, Math.min(...valid) / pad) : Math.min(...valid) / pad;
+  const logMin = Math.log(yMin), logMax = Math.log(yMax);
+  const scale = v => height - ((Math.log(Math.max(v,1e-9)) - logMin) / (logMax - logMin)) * height;
+  return { scale, logMin, logMax };
+}
+function drawLine(ctx, values, yScale, color, width=1.5, dash=null){
+  ctx.strokeStyle = color; ctx.lineWidth = width; ctx.beginPath();
+  if(dash) ctx.setLineDash(dash);
+  let started = false;
+  for(let i=0;i<values.length;i++){
+    const v = values[i];
+    if(v === null){ started = false; continue; }
+    const x = i*PX_PER_BAR + PX_PER_BAR/2, y = yScale(v);
+    if(!started){ ctx.moveTo(x,y); started = true; } else { ctx.lineTo(x,y); }
+  }
+  ctx.stroke();
+  if(dash) ctx.setLineDash([]);
+}
+// Zigzag line -- connects sparse confirmed-pivot points (not one per bar),
+// sorted by bar index, so the drawn line is the classic zigzag polyline.
+function drawZigzag(ctx, swingHigh, swingLow, yScale, color, width=1.4){
+  const points = [];
+  for(let i=0;i<swingHigh.length;i++){
+    if(swingHigh[i] !== null) points.push([i, swingHigh[i]]);
+    if(swingLow[i] !== null) points.push([i, swingLow[i]]);
+  }
+  points.sort((a,b) => a[0]-b[0]);
+  if(points.length < 2) return;
+  ctx.strokeStyle = color; ctx.lineWidth = width; ctx.beginPath();
+  points.forEach(([i,v], k) => {
+    const x = i*PX_PER_BAR + PX_PER_BAR/2, y = yScale(v);
+    if(k===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
+  });
+  ctx.stroke();
+  ctx.fillStyle = color;
+  points.forEach(([i,v]) => {
+    const x = i*PX_PER_BAR + PX_PER_BAR/2, y = yScale(v);
+    ctx.beginPath(); ctx.arc(x,y,2,0,Math.PI*2); ctx.fill();
+  });
+}
+// HH/HL/LH/LL text labels at each classified pivot -- highs labeled above
+// the point, lows below. Green = bullish structure (HH, HL), red = bearish
+// (LH, LL). `prefix` ("B-"/"S-") and font size disambiguate BIG vs SMALL.
+function drawPivotLabels(ctx, swingHigh, swingLow, pivotLabel, yScale, prefix, big){
+  const upColor = cssVar('--up'), downColor = cssVar('--down');
+  ctx.font = (big ? 'bold 10px sans-serif' : '9px sans-serif'); ctx.textAlign = 'center';
+  const dy = big ? 9 : 8;
+  for(let i=0;i<pivotLabel.length;i++){
+    const label = pivotLabel[i];
+    if(!label) continue;
+    const isHigh = swingHigh[i] !== null;
+    const price = isHigh ? swingHigh[i] : swingLow[i];
+    const x = i*PX_PER_BAR + PX_PER_BAR/2, y = yScale(price);
+    const color = (label === "HH" || label === "HL") ? upColor : downColor;
+    ctx.fillStyle = color;
+    ctx.fillText(prefix+label, x, isHigh ? y-dy : y+dy*2);
+  }
+  ctx.textAlign = 'left';
+}
+// BOS/CHoCH break labels at the bar where price actually crosses the level --
+// bullish above the bar's high, bearish below the bar's low. BIG uses a
+// bigger font with a "BIG " prefix; SMALL (the strategy's own trigger) uses
+// small plain text so the two never get visually confused.
+function drawSmcBreaks(ctx, breakCol, highs, lows, yScale, big){
+  const upColor = cssVar('--up'), downColor = cssVar('--down');
+  ctx.font = (big ? 'bold 11px sans-serif' : 'bold 9px sans-serif');
+  ctx.textAlign = 'center';
+  for(let i=0;i<breakCol.length;i++){
+    const b = breakCol[i];
+    if(!b) continue;
+    const isBull = b.startsWith("BULL");
+    const tag = b.endsWith("CHOCH") ? "CHoCH" : "BOS";
+    const label = (big ? "BIG " : "") + tag;
+    ctx.fillStyle = isBull ? upColor : downColor;
+    const x = i*PX_PER_BAR + PX_PER_BAR/2;
+    const y = isBull ? yScale(highs[i]) - (big?18:9) : yScale(lows[i]) + (big?22:13);
+    ctx.fillText(label, x, y);
+  }
+  ctx.textAlign = 'left';
+}
+function drawPriceAxis(ctx, logMin, logMax, height){
+  ctx.clearRect(0,0,AXIS_WIDTH,height);
+  ctx.font = '10px sans-serif'; ctx.fillStyle = 'rgba(230,232,239,0.6)'; ctx.textAlign = 'right';
+  for(let g=1; g<=6; g++){
+    const v = Math.exp(logMin + (logMax-logMin)*(g/6));
+    const y = height - (g/6)*height;
+    ctx.fillText(v >= 1000 ? v.toFixed(0) : v.toFixed(2), AXIS_WIDTH-6, y+3);
+  }
+  ctx.textAlign = 'left';
+}
+function drawLinearAxis(ctx, height, maxValue, ticks, suffix=""){
+  ctx.clearRect(0,0,AXIS_WIDTH,height);
+  ctx.font = '10px sans-serif'; ctx.fillStyle = 'rgba(230,232,239,0.6)'; ctx.textAlign = 'right';
+  for(let g=0; g<=ticks; g++){
+    const v = maxValue*(g/ticks);
+    const y = height - (g/ticks)*height;
+    ctx.fillText((v >= 1000 ? Math.round(v).toLocaleString() : v.toFixed(0))+suffix, AXIS_WIDTH-6, y+3);
+  }
+  ctx.textAlign = 'left';
+}
+function invLinearScale(y, height, maxValue){ return ((height-y)/height) * maxValue; }
+function drawDateAxis(ctx, dates){
+  const n = dates.length, width = n*PX_PER_BAR;
+  ctx.clearRect(0,0,width,DATE_AXIS_HEIGHT);
+  ctx.fillStyle = 'rgba(230,232,239,0.6)'; ctx.font = '10px sans-serif'; ctx.textAlign = 'left';
+  const step = Math.max(1, Math.round(n/50));
+  for(let i=0;i<n;i+=step){
+    if(!dates[i]) continue;
+    ctx.fillText(dates[i].slice(0,7), i*PX_PER_BAR, 15);
+  }
+}
+function drawPricePanel(ctx, opens, highs, lows, closes){
+  const n = closes.length, width = n*PX_PER_BAR;
+  const { scale, logMin, logMax } = computeLogScale(highs.concat(lows), CANDLE_HEIGHT);
+  ctx.clearRect(0,0,width,CANDLE_HEIGHT);
+  drawGrid(ctx,width,CANDLE_HEIGHT,6,PX_PER_BAR*30);
+  const upColor = cssVar('--up'), downColor = cssVar('--down');
+  for(let i=0;i<n;i++){
+    if(closes[i] === null) continue;
+    const x = i*PX_PER_BAR + PX_PER_BAR/2;
+    const isUp = closes[i] >= opens[i];
+    const color = isUp ? upColor : downColor;
+    ctx.strokeStyle = color; ctx.fillStyle = color;
+    ctx.beginPath(); ctx.moveTo(x, scale(highs[i])); ctx.lineTo(x, scale(lows[i])); ctx.stroke();
+    const bw = PX_PER_BAR*0.6, yO = scale(opens[i]), yC = scale(closes[i]);
+    const top = Math.min(yO,yC), barH = Math.max(Math.abs(yO-yC), 1);
+    ctx.fillRect(x-bw/2, top, bw, barH);
+  }
+  return { scale, logMin, logMax };
+}
+function fillAreaUnderLine(ctx, values, yScale, baseline, fillStyle){
+  ctx.beginPath();
+  let started = false, firstX = PX_PER_BAR/2, lastX = PX_PER_BAR/2;
+  for(let i=0;i<values.length;i++){
+    const v = values[i]; if(v === null) continue;
+    const x = i*PX_PER_BAR + PX_PER_BAR/2, y = yScale(v);
+    if(!started){ ctx.moveTo(x,y); firstX = x; started = true; } else { ctx.lineTo(x,y); }
+    lastX = x;
+  }
+  ctx.lineTo(lastX, baseline); ctx.lineTo(firstX, baseline); ctx.closePath();
+  ctx.fillStyle = fillStyle;
+  ctx.fill();
+}
+// Clean 3-band stacked area chart, no border strokes -- bands paint largest-
+// value-line-first so each smaller line's fill overwrites the excess:
+//   0..position      = orange  (Position)
+//   position..margin = green   (margin - position = unrealized)
+//   margin..total     = blue    (total - margin = realized/bank)
+function drawTotalPanel(ctx, totals, positions, margins){
+  const n = totals.length, width = n*PX_PER_BAR;
+  ctx.clearRect(0,0,width,TOTAL_HEIGHT);
+  drawGrid(ctx,width,TOTAL_HEIGHT,4,PX_PER_BAR*30);
+
+  const { scale, logMin, logMax } = computeLogScale(totals, TOTAL_HEIGHT, 1.04, 200);
+  const floor = v => v === null ? null : Math.max(v, 1);
+  const posF = positions.map(floor), marF = margins.map(floor), totF = totals.map(floor);
+
+  fillAreaUnderLine(ctx, totF, scale, TOTAL_HEIGHT, 'rgba(74,158,255,0.55)');
+  fillAreaUnderLine(ctx, marF, scale, TOTAL_HEIGHT, 'rgba(34,197,94,0.55)');
+  fillAreaUnderLine(ctx, posF, scale, TOTAL_HEIGHT, 'rgba(251,146,60,0.55)');
+
+  return { scale, logMin, logMax };
+}
+// ADX14/+DI/-DI -- raw indicator values, reference only (not wired into the
+// SMC strategy), same panel convention as V7.
+function drawIndicatorPanel(ctx, adx, diPlus, diMinus){
+  const n = adx.length, width = n*PX_PER_BAR;
+  ctx.clearRect(0,0,width,INDICATOR_HEIGHT);
+  drawGrid(ctx,width,INDICATOR_HEIGHT,5,PX_PER_BAR*30);
+  const yScale = v => INDICATOR_HEIGHT - (v/100)*INDICATOR_HEIGHT;
+  ctx.strokeStyle = 'rgba(255,255,255,0.25)'; ctx.setLineDash([4,4]);
+  ctx.beginPath(); ctx.moveTo(0, yScale(ADX_LEVEL)); ctx.lineTo(width, yScale(ADX_LEVEL)); ctx.stroke();
+  ctx.setLineDash([]);
+  drawLine(ctx, diMinus, yScale, cssVar('--diminus'));
+  drawLine(ctx, diPlus, yScale, cssVar('--diplus'));
+  drawLine(ctx, adx, yScale, cssVar('--adx'), 1.8);
+}
+// Action Zone: EMA12 vs EMA26 zone strip -- reference only, not wired into
+// the SMC strategy (unlike V7 where it drives the entry). azBullish is
+// precomputed in Python (az_bullish column) -- this only reads/draws it.
+function drawActionZonePanel(ctx, azBullish){
+  const n = azBullish.length, width = n*PX_PER_BAR;
+  ctx.clearRect(0,0,width,ACTIONZONE_HEIGHT);
+  const midY = ACTIONZONE_HEIGHT/2;
+  const upColor = cssVar('--up'), downColor = cssVar('--down');
+  let prevBullish = null;
+  for(let i=0;i<n;i++){
+    if(azBullish[i] === null) continue;
+    const bullish = azBullish[i];
+    const color = bullish ? upColor : downColor;
+    const x = i*PX_PER_BAR;
+    if(prevBullish !== null && bullish !== prevBullish){
+      ctx.fillStyle = color;
+      ctx.beginPath();
+      ctx.arc(x+PX_PER_BAR/2, midY, 3, 0, Math.PI*2);
+      ctx.fill();
+    } else {
+      ctx.strokeStyle = color; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.moveTo(x, midY); ctx.lineTo(x+PX_PER_BAR, midY); ctx.stroke();
+    }
+    prevBullish = bullish;
+  }
+}
+// Full-height vertical line across a panel on entry/exit/liquidation days --
+// same convention as V7's "Verticle Line".
+function drawMarkers(ctx, dayCats, height){
+  for(let i=0;i<dayCats.length;i++){
+    const cats = dayCats[i];
+    if(!cats.length) continue;
+    const xCenter = i*PX_PER_BAR + PX_PER_BAR/2;
+    cats.forEach((cat, k) => {
+      const offset = (k - (cats.length-1)/2) * 2;
+      ctx.fillStyle = cssVar(cat.color.replace('var(','').replace(')',''));
+      ctx.fillRect(xCenter+offset-0.75, 0, 1.5, height);
+    });
+  }
+}
+function drawCrosshairLabelBox(ctx, width, height, boxW, boxH, left, top, text){
+  ctx.clearRect(0,0,width,height);
+  ctx.fillStyle = '#1c202c';
+  ctx.fillRect(left,top,boxW,boxH);
+  ctx.strokeStyle = 'rgba(255,255,255,0.35)';
+  ctx.strokeRect(left+0.5, top+0.5, boxW-1, boxH-1);
+  ctx.fillStyle = '#e6e8ef'; ctx.font = '10px sans-serif'; ctx.textAlign = 'center';
+  ctx.fillText(text, left+boxW/2, top+boxH/2+3);
+  ctx.textAlign = 'left';
+}
+function drawPriceCrosshairLabel(ctx, height, y, text){
+  const boxH = 18, top = Math.min(Math.max(y-boxH/2,0), height-boxH);
+  drawCrosshairLabelBox(ctx, AXIS_WIDTH, height, AXIS_WIDTH, boxH, 0, top, text);
+}
+function drawDateCrosshairLabel(ctx, width, x, text){
+  const boxW = 68, left = Math.min(Math.max(x-boxW/2,0), width-boxW);
+  drawCrosshairLabelBox(ctx, width, DATE_AXIS_HEIGHT, boxW, DATE_AXIS_HEIGHT-4, left, 2, text);
+}
+function invLogScale(y, height, logMin, logMax){
+  const frac = (height-y)/height;
+  return Math.exp(logMin + frac*(logMax-logMin));
+}
+function fmtPriceLabel(v){ return v >= 1000 ? v.toFixed(0) : v.toFixed(2); }
+
+// ---------------------------------------------------------------------------
+// Table
+// ---------------------------------------------------------------------------
+function fmtMoney(v){ return v==null || !isFinite(v) ? "" : v.toFixed(2); }
+function fmtPct(v){ return v==null || !isFinite(v) ? "" : (v>=0?"+":"")+v.toFixed(2)+"%"; }
+function fmtRatio(v){ return v==null || !isFinite(v) ? "" : v.toFixed(2)+"x"; }
+function signCls(v){ return v==null || !isFinite(v) || v===0 ? "" : (v>0 ? " pos" : " neg"); }
+
+function renderTable(state, sc){
+  const table = document.getElementById("data-table");
+  const cols = [
+    ["date",             "text",  i => escapeHTML(String(state.dates[i]))],
+    ["close",            "money", i => fmtMoney(state.closes[i])],
+    ["%change",          "pct",   i => fmtPct(state.pctChange[i]), i => state.pctChange[i]],
+    ["ema12",            "money", i => fmtMoney(state.ema12[i])],
+    ["ema20",            "money", i => fmtMoney(state.ema20[i])],
+    ["ema26",            "money", i => fmtMoney(state.ema26[i])],
+    ["adx14",            "num",   i => fmtMoney(state.adx14[i])],
+    ["+di",              "num",   i => fmtMoney(state.diPlus[i])],
+    ["-di",              "num",   i => fmtMoney(state.diMinus[i])],
+    ["big_swing_high",   "money", i => fmtMoney(state.bigSwingHigh[i])],
+    ["big_swing_low",    "money", i => fmtMoney(state.bigSwingLow[i])],
+    ["big_pivot_label",  "text",  i => state.bigPivotLabel[i] || ""],
+    ["big_break",        "text",  i => state.bigBreak[i] || ""],
+    ["small_swing_high", "money", i => fmtMoney(state.smallSwingHigh[i])],
+    ["small_swing_low",  "money", i => fmtMoney(state.smallSwingLow[i])],
+    ["small_pivot_label","text",  i => state.smallPivotLabel[i] || ""],
+    ["small_break",      "text",  i => state.smallBreak[i] || ""],
+    ["liquidate",        "money", i => fmtMoney(sc.liquidatePrice[i])],
+    ["%liquidate",       "pct",   i => fmtPct(sc.pctLiquidate[i]), i => sc.pctLiquidate[i]],
+    ["leverage",         "ratio", i => fmtRatio(sc.leverage[i])],
+    ["position_size",    "num",   i => sc.positionSize[i]==null ? "" : sc.positionSize[i].toFixed(6)],
+    ["notional",         "money", i => fmtMoney(sc.notional[i])],
+    ["total",            "money", i => fmtMoney(sc.total[i])],
+    ["pnl",              "money", i => fmtMoney(sc.pnl[i]), i => sc.pnl[i]],
+    ["%pnl",             "pct",   i => fmtPct(sc.pctPnl[i]), i => sc.pctPnl[i]],
+    ["margin",           "money", i => fmtMoney(sc.margin[i])],
+    ["position",         "money", i => fmtMoney(sc.position[i])],
+    ["unrealized",       "money", i => fmtMoney(sc.unrealized[i]), i => sc.unrealized[i]],
+    ["realized",         "money", i => fmtMoney(sc.realized[i]), i => sc.realized[i]],
+    ["action",           "text",  i => escapeHTML(sc.action[i])],
+  ];
+
+  let html = "<thead><tr>" + cols.map(([label,type]) =>
+    "<th"+(type!=="text"?' class="num"':'')+">"+escapeHTML(label)+"</th>"
+  ).join("") + "</tr></thead>";
+
+  const rows = [];
+  for(let i=0;i<state.n;i++){
+    const cells = cols.map(([label,type,fmt,signVal]) => {
+      const display = fmt(i);
+      const cls = (type!=="text" ? "num" : "") + (signVal ? signCls(signVal(i)) : "");
+      return `<td${cls?` class="${cls}"`:""}>${display}</td>`;
+    });
+    rows.push("<tr>" + cells.join("") + "</tr>");
+  }
+  html += "<tbody>" + rows.join("") + "</tbody>";
+  table.innerHTML = html;
+
+  requestAnimationFrame(() => {
+    const firstCell = table.querySelector("tbody td:first-child") || table.querySelector("th:first-child");
+    if(firstCell) table.style.setProperty("--col1-w", firstCell.getBoundingClientRect().width + "px");
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Stats
+// ---------------------------------------------------------------------------
+function renderStats(state, sc){
+  const totals = sc.total.map(v => v === null ? 0 : v);
+  let peak = -Infinity, maxDD = 0;
+  totals.forEach(v => { peak = Math.max(peak, v); maxDD = Math.min(maxDD, v-peak); });
+  const count = (arr, test) => arr.filter(a => a && test(a)).length;
+  const openNow = sc.positionSize[state.n-1] != null;
+  const cards = [
+    ["Scenario start", `${sc.startDate} @ ${sc.startPriceLabel}`],
+    ["Final Total", "$" + totals[totals.length-1].toLocaleString(undefined,{maximumFractionDigits:2})],
+    ["Realized (bank)", "$" + (sc.realized[state.n-1] || 0).toLocaleString(undefined,{maximumFractionDigits:2})],
+    ["Max Drawdown", "$" + maxDD.toLocaleString(undefined,{maximumFractionDigits:2})],
+    ["Entries", count(sc.action, a => a.includes("ENTRY @"))],
+    ["Exits", count(sc.action, a => a.includes("EXIT @"))],
+    ["Liquidations", count(sc.action, a => a.includes("LIQUIDATION EVENT"))],
+    ["Small BOS (bull/bear)", count(state.structureAction, a=>a.includes("SMALL BULL BOS")) + " / " + count(state.structureAction, a=>a.includes("SMALL BEAR BOS"))],
+    ["Big CHoCH (bull/bear)", count(state.structureAction, a=>a.includes("BIG BULL CHOCH")) + " / " + count(state.structureAction, a=>a.includes("BIG BEAR CHOCH"))],
+    ["Open at end", openNow ? "Yes" : "No"],
+  ];
+  document.getElementById("statRow").innerHTML = cards.map(([label,value]) => `
+    <div class="stat-card"><div class="label">${label}</div><div class="value">${value}</div></div>
+  `).join("");
+}
+
+// ---------------------------------------------------------------------------
+// Main
+// ---------------------------------------------------------------------------
+function parseBool(v){ return v === null ? null : (v === "True" || v === "true" || v === "1"); }
+
+function parseState(csvText){
+  const parsed = parseCSV(csvText);
+  const header = parsed[0], body = parsed.slice(1);
+
+  const state = {
+    dates: col(header, body, "date"),
+    opens: col(header, body, "open", parseFloat),
+    highs: col(header, body, "high", parseFloat),
+    lows: col(header, body, "low", parseFloat),
+    closes: col(header, body, "close", parseFloat),
+    pctChange: col(header, body, "pct_change", parseFloat),
+    ema12: col(header, body, "ema12", parseFloat),
+    ema20: col(header, body, "ema20", parseFloat),
+    ema26: col(header, body, "ema26", parseFloat),
+    azBullish: col(header, body, "az_bullish", parseBool),
+    adx14: col(header, body, "adx14", parseFloat),
+    diPlus: col(header, body, "di_plus", parseFloat),
+    diMinus: col(header, body, "di_minus", parseFloat),
+    bigSwingHigh: col(header, body, "big_swing_high", parseFloat),
+    bigSwingLow: col(header, body, "big_swing_low", parseFloat),
+    bigPivotLabel: col(header, body, "big_pivot_label"),
+    bigBreak: col(header, body, "big_break"),
+    smallSwingHigh: col(header, body, "small_swing_high", parseFloat),
+    smallSwingLow: col(header, body, "small_swing_low", parseFloat),
+    smallPivotLabel: col(header, body, "small_pivot_label"),
+    smallBreak: col(header, body, "small_break"),
+    structureAction: col(header, body, "structure_action").map(v => v || ""),
+  };
+  state.n = state.dates.length;
+
+  state.scenarios = {};
+  SCENARIO_KEYS.forEach(meta => {
+    const k = meta.key;
+    const action = col(header, body, `${k}_action`).map(v => v || "");
+    // start date is auto-detected per asset (generate_calc_csv_v10.py) --
+    // just find this scenario's first ENTRY row rather than assuming a fixed date.
+    const startIdx = action.findIndex(a => a.includes("ENTRY @"));
+    state.scenarios[k] = {
+      key: k, label: meta.label,
+      startDate: startIdx >= 0 ? state.dates[startIdx] : "?",
+      startPriceLabel: startIdx >= 0 ? fmtPriceLabel(state.closes[startIdx]) : "?",
+      liquidatePrice: col(header, body, `${k}_liquidate_price`, parseFloat),
+      pctLiquidate: col(header, body, `${k}_pct_liquidate`, parseFloat),
+      leverage: col(header, body, `${k}_leverage`, parseFloat),
+      positionSize: col(header, body, `${k}_position_size`, parseFloat),
+      notional: col(header, body, `${k}_notional`, parseFloat),
+      total: col(header, body, `${k}_total`, parseFloat),
+      pnl: col(header, body, `${k}_pnl`, parseFloat),
+      pctPnl: col(header, body, `${k}_pct_pnl`, parseFloat),
+      margin: col(header, body, `${k}_margin`, parseFloat),
+      position: col(header, body, `${k}_position`, parseFloat),
+      unrealized: col(header, body, `${k}_unrealized`, parseFloat),
+      realized: col(header, body, `${k}_realized`, parseFloat),
+      action,
+      dayCats: action.map(a => classify(a)),
+    };
+  });
+  return state;
+}
+
+let CHART_HANDLE = null;
+
+function render(state, scenarioKey){
+  const sc = state.scenarios[scenarioKey];
+  document.getElementById("loader").style.display = "none";
+  document.getElementById("app").style.display = "block";
+
+  const width = state.n * PX_PER_BAR;
+  const els = {};
+  ["candleCanvas","candleOverlay","totalCanvas","totalOverlay",
+   "indicatorCanvas","indicatorOverlay","actionZoneCanvas","actionZoneOverlay",
+   "dateAxis","dateAxisOverlay"].forEach(id => els[id] = document.getElementById(id));
+  const heights = {
+    candleCanvas: CANDLE_HEIGHT, candleOverlay: CANDLE_HEIGHT,
+    totalCanvas: TOTAL_HEIGHT, totalOverlay: TOTAL_HEIGHT,
+    indicatorCanvas: INDICATOR_HEIGHT, indicatorOverlay: INDICATOR_HEIGHT,
+    actionZoneCanvas: ACTIONZONE_HEIGHT, actionZoneOverlay: ACTIONZONE_HEIGHT,
+    dateAxis: DATE_AXIS_HEIGHT, dateAxisOverlay: DATE_AXIS_HEIGHT,
+  };
+  Object.keys(els).forEach(id => { els[id].width = width; els[id].height = heights[id]; });
+
+  const candleAxis = document.getElementById("candleAxis"), candleAxisOverlay = document.getElementById("candleAxisOverlay");
+  const totalAxis = document.getElementById("totalAxis"), totalAxisOverlay = document.getElementById("totalAxisOverlay");
+  const indicatorAxis = document.getElementById("indicatorAxis"), indicatorAxisOverlay = document.getElementById("indicatorAxisOverlay");
+  [candleAxis, candleAxisOverlay].forEach(c => { c.width = AXIS_WIDTH; c.height = CANDLE_HEIGHT; });
+  [totalAxis, totalAxisOverlay].forEach(c => { c.width = AXIS_WIDTH; c.height = TOTAL_HEIGHT; });
+  [indicatorAxis, indicatorAxisOverlay].forEach(c => { c.width = AXIS_WIDTH; c.height = INDICATOR_HEIGHT; });
+  document.getElementById("cornerSpacer").style.height = DATE_AXIS_HEIGHT + "px";
+
+  const candleCtx = els.candleCanvas.getContext("2d");
+  const totalCtx = els.totalCanvas.getContext("2d");
+  const indicatorCtx = els.indicatorCanvas.getContext("2d");
+  const actionZoneCtx = els.actionZoneCanvas.getContext("2d");
+
+  const priceScale = drawPricePanel(candleCtx, state.opens, state.highs, state.lows, state.closes);
+  drawZigzag(candleCtx, state.bigSwingHigh, state.bigSwingLow, priceScale.scale, cssVar('--big-line'), 1.6);
+  drawZigzag(candleCtx, state.smallSwingHigh, state.smallSwingLow, priceScale.scale, cssVar('--small-line'), 1.0);
+  drawPivotLabels(candleCtx, state.bigSwingHigh, state.bigSwingLow, state.bigPivotLabel, priceScale.scale, "B-", true);
+  drawPivotLabels(candleCtx, state.smallSwingHigh, state.smallSwingLow, state.smallPivotLabel, priceScale.scale, "S-", false);
+  drawSmcBreaks(candleCtx, state.bigBreak, state.highs, state.lows, priceScale.scale, true);
+  drawSmcBreaks(candleCtx, state.smallBreak, state.highs, state.lows, priceScale.scale, false);
+  drawLine(candleCtx, state.ema20, priceScale.scale, cssVar('--ema20'), 1.3);
+  drawLine(candleCtx, sc.liquidatePrice, priceScale.scale, cssVar('--liq-price'), 1.2, [5,4]);
+
+  const totalScale = drawTotalPanel(totalCtx, sc.total, sc.position, sc.margin);
+  drawIndicatorPanel(indicatorCtx, state.adx14, state.diPlus, state.diMinus);
+  drawActionZonePanel(actionZoneCtx, state.azBullish);
+
+  drawMarkers(totalCtx, sc.dayCats, TOTAL_HEIGHT);
+  drawMarkers(indicatorCtx, sc.dayCats, INDICATOR_HEIGHT);
+  drawMarkers(candleCtx, sc.dayCats, CANDLE_HEIGHT);
+
+  drawDateAxis(els.dateAxis.getContext("2d"), state.dates);
+  drawPriceAxis(candleAxis.getContext("2d"), priceScale.logMin, priceScale.logMax, CANDLE_HEIGHT);
+  drawPriceAxis(totalAxis.getContext("2d"), totalScale.logMin, totalScale.logMax, TOTAL_HEIGHT);
+  drawLinearAxis(indicatorAxis.getContext("2d"), INDICATOR_HEIGHT, 100, 5);
+
+  const chartInner = document.getElementById("chartInner");
+  const overlays = [els.totalOverlay, els.indicatorOverlay, els.actionZoneOverlay, els.candleOverlay];
+  const readoutTop = document.getElementById("readoutTop");
+  const readoutBottom = document.getElementById("readoutBottom");
+
+  function onMouseMove(e){
+    const rect = chartInner.getBoundingClientRect();
+    const x = e.clientX - rect.left, y = e.clientY - rect.top;
+    const i = Math.min(state.n-1, Math.max(0, Math.floor(x/PX_PER_BAR)));
+    if(state.closes[i] === null) return;
+    const xCenter = i*PX_PER_BAR + PX_PER_BAR/2;
+
+    let panelIdx = -1, localY = 0, acc = 0;
+    for(let p=0;p<PANEL_HEIGHTS.length;p++){
+      if(y < acc+PANEL_HEIGHTS[p]){ panelIdx = p; localY = y-acc; break; }
+      acc += PANEL_HEIGHTS[p];
+    }
+
+    overlays.forEach((canvas, idx) => {
+      const ctx = canvas.getContext("2d"), h = PANEL_HEIGHTS[idx];
+      ctx.clearRect(0,0,width,h);
+      ctx.strokeStyle = 'rgba(255,255,255,0.5)'; ctx.setLineDash([2,3]);
+      ctx.beginPath(); ctx.moveTo(xCenter,0); ctx.lineTo(xCenter,h); ctx.stroke();
+      if(idx === panelIdx){ ctx.beginPath(); ctx.moveTo(0,localY); ctx.lineTo(width,localY); ctx.stroke(); }
+      ctx.setLineDash([]);
+    });
+
+    const tAxisCtx = totalAxisOverlay.getContext("2d"), iAxisCtx = indicatorAxisOverlay.getContext("2d"),
+          cAxisCtx = candleAxisOverlay.getContext("2d");
+    tAxisCtx.clearRect(0,0,AXIS_WIDTH,TOTAL_HEIGHT); iAxisCtx.clearRect(0,0,AXIS_WIDTH,INDICATOR_HEIGHT);
+    cAxisCtx.clearRect(0,0,AXIS_WIDTH,CANDLE_HEIGHT);
+    if(panelIdx === 0){
+      drawPriceCrosshairLabel(tAxisCtx, TOTAL_HEIGHT, localY, fmtPriceLabel(invLogScale(localY, TOTAL_HEIGHT, totalScale.logMin, totalScale.logMax)));
+    } else if(panelIdx === 1){
+      drawPriceCrosshairLabel(iAxisCtx, INDICATOR_HEIGHT, localY, invLinearScale(localY, INDICATOR_HEIGHT, 100).toFixed(0));
+    } else if(panelIdx === 3){
+      drawPriceCrosshairLabel(cAxisCtx, CANDLE_HEIGHT, localY, fmtPriceLabel(invLogScale(localY, CANDLE_HEIGHT, priceScale.logMin, priceScale.logMax)));
+    }
+    // panelIdx === 2 is the Action Zone strip -- categorical, no value axis label.
+    drawDateCrosshairLabel(els.dateAxisOverlay.getContext("2d"), width, xCenter, state.dates[i]);
+
+    let dataHtml = `<b>${state.dates[i]}</b> &nbsp; close <b>${state.closes[i].toFixed(2)}</b>`;
+    if(state.ema12[i] !== null) dataHtml += ` &nbsp; ema12/20/26 <b>${state.ema12[i].toFixed(2)} / ${state.ema20[i].toFixed(2)} / ${state.ema26[i].toFixed(2)}</b>`;
+    if(state.adx14[i] !== null) dataHtml += ` &nbsp; adx14 <b>${state.adx14[i].toFixed(2)}</b> +di <b>${state.diPlus[i].toFixed(2)}</b> -di <b>${state.diMinus[i].toFixed(2)}</b>`;
+    if(state.bigSwingHigh[i] !== null) dataHtml += ` &nbsp; big_swing_high <b>${state.bigSwingHigh[i].toFixed(2)}</b>${state.bigPivotLabel[i] ? ` (${state.bigPivotLabel[i]})` : ""}`;
+    if(state.bigSwingLow[i] !== null) dataHtml += ` &nbsp; big_swing_low <b>${state.bigSwingLow[i].toFixed(2)}</b>${state.bigPivotLabel[i] ? ` (${state.bigPivotLabel[i]})` : ""}`;
+    if(state.bigBreak[i]) dataHtml += ` &nbsp; big_break <b>${state.bigBreak[i]}</b>`;
+    if(state.smallSwingHigh[i] !== null) dataHtml += ` &nbsp; small_swing_high <b>${state.smallSwingHigh[i].toFixed(2)}</b>${state.smallPivotLabel[i] ? ` (${state.smallPivotLabel[i]})` : ""}`;
+    if(state.smallSwingLow[i] !== null) dataHtml += ` &nbsp; small_swing_low <b>${state.smallSwingLow[i].toFixed(2)}</b>${state.smallPivotLabel[i] ? ` (${state.smallPivotLabel[i]})` : ""}`;
+    if(state.smallBreak[i]) dataHtml += ` &nbsp; small_break <b>${state.smallBreak[i]}</b>`;
+    if(sc.liquidatePrice[i] !== null) dataHtml += ` &nbsp; liquidate <b>${sc.liquidatePrice[i].toFixed(2)}</b>`;
+    if(sc.leverage[i] !== null) dataHtml += ` &nbsp; leverage <b>${sc.leverage[i].toFixed(2)}x</b>`;
+    if(sc.positionSize[i] !== null) dataHtml += ` &nbsp; position_size <b>${sc.positionSize[i].toFixed(6)} BTC</b>`;
+    if(sc.total[i] !== null) dataHtml += ` &nbsp; total <b>$${sc.total[i].toFixed(2)}</b>`;
+    if(sc.position[i] !== null) dataHtml += ` &nbsp; position <b>$${sc.position[i].toFixed(2)}</b>`;
+    if(sc.margin[i] !== null) dataHtml += ` &nbsp; margin <b>$${sc.margin[i].toFixed(2)}</b>`;
+    if(sc.unrealized[i] !== null) dataHtml += ` &nbsp; unrealized <b>$${sc.unrealized[i].toFixed(2)}</b>`;
+    if(sc.realized[i] !== null) dataHtml += ` &nbsp; realized <b>$${sc.realized[i].toFixed(2)}</b>`;
+
+    const combinedAction = [state.structureAction[i], sc.action[i]].filter(Boolean).join(" | ");
+    const actionHtml = combinedAction ? `<span class="action">${escapeHTML(combinedAction)}</span>` : "&nbsp;";
+
+    const html = `<div class="readout-line">${dataHtml}</div><div class="readout-line">${actionHtml}</div>`;
+    readoutTop.innerHTML = html;
+    readoutBottom.innerHTML = html;
+  }
+  function onMouseLeave(){
+    overlays.forEach((c,idx) => c.getContext("2d").clearRect(0,0,width,PANEL_HEIGHTS[idx]));
+    totalAxisOverlay.getContext("2d").clearRect(0,0,AXIS_WIDTH,TOTAL_HEIGHT);
+    indicatorAxisOverlay.getContext("2d").clearRect(0,0,AXIS_WIDTH,INDICATOR_HEIGHT);
+    candleAxisOverlay.getContext("2d").clearRect(0,0,AXIS_WIDTH,CANDLE_HEIGHT);
+    els.dateAxisOverlay.getContext("2d").clearRect(0,0,width,DATE_AXIS_HEIGHT);
+  }
+
+  if(CHART_HANDLE){
+    chartInner.removeEventListener("mousemove", CHART_HANDLE.onMouseMove);
+    chartInner.removeEventListener("mouseleave", CHART_HANDLE.onMouseLeave);
+  }
+  chartInner.addEventListener("mousemove", onMouseMove);
+  chartInner.addEventListener("mouseleave", onMouseLeave);
+  CHART_HANDLE = { onMouseMove, onMouseLeave };
+
+  renderStats(state, sc);
+  renderTable(state, sc);
+}
+
+function renderSetup(setup){
+  const items = [
+    ["Source", setup.source],
+    ["Structures", setup.structures],
+    ["Pivot detection", setup.pivot_detection],
+    ["BOS/CHoCH logic", setup.bos_choch_logic],
+    ["Entry", setup.entry_logic],
+    ["Compound (scale-in)", setup.scale_in_logic],
+    ["Secure out", setup.secure_out_logic],
+    ["Exit", setup.exit_logic],
+    ["Take profit", setup.tp_logic],
+    ["Stop loss", setup.sl_logic],
+    ["Re-entry", setup.re_entry_logic],
+  ];
+  const meta = [setup.asset, setup.exchange, setup.leverage].filter(Boolean).join(" — ");
+  document.getElementById("setupTooltip").innerHTML =
+    `<div class="setup-title">Setup${meta ? " — " + escapeHTML(meta) : ""}</div>` +
+    `<div class="setup-grid">` +
+    items.map(([label, text]) => text ? `<div class="setup-item"><b>${escapeHTML(label)}:</b> <span>${escapeHTML(text)}</span></div>` : "").join("") +
+    `</div>`;
+}
+
+let APP_STATE = null;
+
+function rerun(){
+  if(!APP_STATE) return;
+  render(APP_STATE, document.getElementById("scenarioSel").value);
+}
+
+function boot(csvText){
+  APP_STATE = parseState(csvText);
+  const sel = document.getElementById("scenarioSel");
+  if(!sel.options.length){
+    SCENARIO_KEYS.forEach(meta => sel.add(new Option(meta.label, meta.key)));
+    sel.value = "b";
+    sel.addEventListener("change", rerun);
+  }
+  rerun();
+}
+
+function fetchAsset(file){
+  document.getElementById("loader").style.display = "block";
+  document.getElementById("app").style.display = "none";
+  fetch(file)
+    .then(r => { if(!r.ok) throw new Error("HTTP "+r.status); return r.text(); })
+    .then(boot)
+    .catch(() => { document.getElementById("loader-fallback").style.display = "block"; });
+}
+
+function tryFetch(){
+  fetch("setup_v10.json").then(r => r.ok ? r.json() : null).then(s => { if(s) renderSetup(s); }).catch(() => {});
+  const assetSel = document.getElementById("assetSel");
+  if(!assetSel.options.length){
+    ASSETS_META.forEach(meta => assetSel.add(new Option(meta.label, meta.key)));
+    assetSel.value = "btc";
+    assetSel.addEventListener("change", () => {
+      const meta = ASSETS_META.find(m => m.key === assetSel.value);
+      if(meta) fetchAsset(meta.file);
+    });
+  }
+  fetchAsset(ASSETS_META.find(m => m.key === assetSel.value).file);
+}
+document.getElementById("file-input").addEventListener("change", (e)=>{
+  const file = e.target.files[0]; if(!file) return;
+  const reader = new FileReader(); reader.onload = (ev) => boot(ev.target.result); reader.readAsText(file);
+});
+document.body.addEventListener("dragover", e=>e.preventDefault());
+document.body.addEventListener("drop", (e)=>{
+  e.preventDefault();
+  const file = e.dataTransfer.files[0]; if(!file) return;
+  const reader = new FileReader(); reader.onload = (ev) => boot(ev.target.result); reader.readAsText(file);
+});
+
+tryFetch();
+</script>
+</body>
+</html>
