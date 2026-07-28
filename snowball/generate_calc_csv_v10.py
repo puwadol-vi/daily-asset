@@ -83,7 +83,7 @@ by the same rule verified against BTC's original hand-picked dates
 Each scenario's own realized/total/margin/... columns are prefixed a_/b_.
 
 Usage:
-    venv/bin/python3 snowball/backtest/v10/generate_calc_csv_v10.py
+    venv/bin/python3 snowball/generate_calc_csv_v10.py
 """
 import ccxt
 import pandas as pd
@@ -108,11 +108,11 @@ LEVERAGE_LOW_ADX_GREEN_ZONE = 10.0    # ADX low + action zone bullish -- best-pe
 MMR = 0.0                            # maintenance margin rate, same simplification as V5-V7
 
 ASSETS = [
-    {"symbol": "BTC/USDT", "output": "snowball/backtest/v10/calc_btc.csv"},
-    {"symbol": "ETH/USDT", "output": "snowball/backtest/v10/calc_eth.csv"},
-    {"symbol": "BNB/USDT", "output": "snowball/backtest/v10/calc_bnb.csv"},
-    {"symbol": "SOL/USDT", "output": "snowball/backtest/v10/calc_sol.csv"},
-    {"symbol": "XRP/USDT", "output": "snowball/backtest/v10/calc_xrp.csv"},
+    {"symbol": "BTC/USDT", "output": "snowball/calc_btc.csv"},
+    {"symbol": "ETH/USDT", "output": "snowball/calc_eth.csv"},
+    {"symbol": "BNB/USDT", "output": "snowball/calc_bnb.csv"},
+    {"symbol": "SOL/USDT", "output": "snowball/calc_sol.csv"},
+    {"symbol": "XRP/USDT", "output": "snowball/calc_xrp.csv"},
 ]
 
 BULLISH_LEG, BEARISH_LEG = 1, 0
@@ -222,32 +222,20 @@ def pick_scenario_dates(green_dates: list) -> tuple:
     return date_a, date_b
 
 
-def run_simulation(df: pd.DataFrame, scenarios: list) -> dict:
+def detect_structure(df: pd.DataFrame) -> dict:
+    """Runs the BIG/SMALL leg -> pivot -> BOS/CHoCH detection across the
+    whole range of df (smc.txt's leg()/getCurrentStructure()/displayStructure(),
+    same algorithm as detect_small_green_choch_dates() but keeping every
+    column needed for charting, plus the full per-bar small_green_choch/
+    small_red_choch boolean series -- the literal entry/exit triggers).
+    Pulled out of run_simulation() so both the single-asset engine (its own
+    bank/position sim, steps 3-5 below) and the multi-asset portfolio engine
+    (generate_calc_multi.py's shared-bank sim) can drive their own strategy
+    logic off the identical structure/CHoCH signals, computed once."""
     n = len(df)
     highs = df["high"].tolist()
     lows = df["low"].tolist()
     closes = df["close"].tolist()
-    adx14 = df["adx14"].tolist()
-    az_bullish = df["az_bullish"].tolist()
-    # Structure detection (BIG/SMALL) runs across the whole fetched range,
-    # including the pre-scenario-A warmup -- it needs that history to have
-    # real pivots ready by the first displayed bar. Each SCENARIO's own
-    # strategy must NOT trade before ITS OWN start_date though, or its realized
-    # ledger would already reflect trades nobody can see in the displayed CSV
-    # (this was the actual bug in the single-scenario version: realized showed
-    # -5309.68 on the very first visible row because 2022 trades had already
-    # happened, off-screen, before the old single DISPLAY_START).
-    for sc in scenarios:
-        sc["tradeable"] = (df["date"] >= sc["start_date"]).tolist()
-        sc["position"] = None       # {"avg_entry","size","isolated_margin","leverage"} or None
-        # realized is a real cash ledger, not a pure PnL total: starts holding
-        # the full starting capital, ENTRY draws the margin OUT (50% of
-        # whatever the bank currently holds), EXIT/LIQUIDATION pays the
-        # position's full closing margin_balance back IN -- so `total` never
-        # jumps at an entry/exit, it just relabels which bucket the same
-        # dollar is sitting in.
-        sc["realized_total"] = STARTING_CAPITAL
-        sc["prev_total"] = STARTING_CAPITAL
 
     roll_high = {
         BIG_SIZE: df["high"].rolling(BIG_SIZE, min_periods=BIG_SIZE).max().tolist(),
@@ -263,17 +251,8 @@ def run_simulation(df: pd.DataFrame, scenarios: list) -> dict:
         "small_swing_high": [None] * n, "small_swing_low": [None] * n, "small_pivot_label": [None] * n,
         "big_break": [None] * n, "small_break": [None] * n,
         "structure_action": [""] * n,
+        "small_green_choch": [False] * n, "small_red_choch": [False] * n,
     }
-    for sc in scenarios:
-        k = sc["key"]
-        out.update({
-            f"{k}_liquidate_price": [None] * n, f"{k}_pct_liquidate": [None] * n,
-            f"{k}_leverage": [None] * n, f"{k}_position_size": [None] * n, f"{k}_notional": [None] * n,
-            f"{k}_total": [None] * n, f"{k}_pnl": [None] * n, f"{k}_pct_pnl": [None] * n,
-            f"{k}_margin": [None] * n, f"{k}_position": [None] * n,
-            f"{k}_unrealized": [None] * n, f"{k}_realized": [None] * n,
-            f"{k}_action": [""] * n,
-        })
 
     big = Structure(BIG_SIZE)
     small = Structure(SMALL_SIZE)
@@ -323,7 +302,6 @@ def run_simulation(df: pd.DataFrame, scenarios: list) -> dict:
 
         # --- 2. BOS/CHoCH checks -- BIG first, then SMALL (SMALL's
         # extraCondition needs BIG's CURRENT levels, already updated above) ---
-        small_green_choch = small_red_choch = False
         price = closes[i]
         prev_price = closes[i - 1] if i > 0 else None
 
@@ -343,7 +321,7 @@ def run_simulation(df: pd.DataFrame, scenarios: list) -> dict:
                     out[break_col][i] = f"BULL_{tag}"
                     action_parts.append(f"{prefix} BULL {tag} @ {price:.2f} (level {ph['level']:.2f})")
                     if is_small and tag == "CHOCH":
-                        small_green_choch = True
+                        out["small_green_choch"][i] = True
             if i > 0 and pl["level"] is not None and not pl["crossed"]:
                 extra = True
                 if is_small and big.pivot_low["level"] is not None:
@@ -356,9 +334,58 @@ def run_simulation(df: pd.DataFrame, scenarios: list) -> dict:
                     out[break_col][i] = f"BEAR_{tag}"
                     action_parts.append(f"{prefix} BEAR {tag} @ {price:.2f} (level {pl['level']:.2f})")
                     if is_small and tag == "CHOCH":
-                        small_red_choch = True
+                        out["small_red_choch"][i] = True
 
         out["structure_action"][i] = " | ".join(action_parts)
+
+    return out
+
+
+def run_simulation(df: pd.DataFrame, scenarios: list) -> dict:
+    n = len(df)
+    lows = df["low"].tolist()
+    closes = df["close"].tolist()
+    adx14 = df["adx14"].tolist()
+    az_bullish = df["az_bullish"].tolist()
+    # Structure detection (BIG/SMALL) runs across the whole fetched range,
+    # including the pre-scenario-A warmup -- it needs that history to have
+    # real pivots ready by the first displayed bar. Each SCENARIO's own
+    # strategy must NOT trade before ITS OWN start_date though, or its realized
+    # ledger would already reflect trades nobody can see in the displayed CSV
+    # (this was the actual bug in the single-scenario version: realized showed
+    # -5309.68 on the very first visible row because 2022 trades had already
+    # happened, off-screen, before the old single DISPLAY_START).
+    for sc in scenarios:
+        sc["tradeable"] = (df["date"] >= sc["start_date"]).tolist()
+        sc["position"] = None       # {"avg_entry","size","isolated_margin","leverage"} or None
+        # realized is a real cash ledger, not a pure PnL total: starts holding
+        # the full starting capital, ENTRY draws the margin OUT (50% of
+        # whatever the bank currently holds), EXIT/LIQUIDATION pays the
+        # position's full closing margin_balance back IN -- so `total` never
+        # jumps at an entry/exit, it just relabels which bucket the same
+        # dollar is sitting in.
+        sc["realized_total"] = STARTING_CAPITAL
+        sc["prev_total"] = STARTING_CAPITAL
+
+    structure = detect_structure(df)
+    small_green_choch_arr = structure.pop("small_green_choch")
+    small_red_choch_arr = structure.pop("small_red_choch")
+    out = structure
+    for sc in scenarios:
+        k = sc["key"]
+        out.update({
+            f"{k}_liquidate_price": [None] * n, f"{k}_pct_liquidate": [None] * n,
+            f"{k}_leverage": [None] * n, f"{k}_position_size": [None] * n, f"{k}_notional": [None] * n,
+            f"{k}_total": [None] * n, f"{k}_pnl": [None] * n, f"{k}_pct_pnl": [None] * n,
+            f"{k}_margin": [None] * n, f"{k}_position": [None] * n,
+            f"{k}_unrealized": [None] * n, f"{k}_realized": [None] * n,
+            f"{k}_action": [""] * n,
+        })
+
+    for i in range(n):
+        small_green_choch = small_green_choch_arr[i]
+        small_red_choch = small_red_choch_arr[i]
+        price = closes[i]
 
         # --- 3-5. Per-scenario position sim: liquidation check, CHoCH entry/
         # exit, then recompute + record (same field conventions as V7). Each

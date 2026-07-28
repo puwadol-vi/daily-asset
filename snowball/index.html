@@ -78,6 +78,7 @@
     padding: 5px 8px; font-size: 12.5px; min-width: 220px;
   }
 
+  .nav-group { display: flex; gap: 10px; margin-left: auto; }
   .plan-link {
     font-size: 12px;
     font-weight: 500;
@@ -87,7 +88,6 @@
     border: 1px solid var(--border);
     border-radius: 6px;
     padding: 6px 12px;
-    margin-left: auto;
   }
   .plan-link:hover { background: #1f2330; }
   .setup-hover { position: relative; display: inline-flex; }
@@ -172,12 +172,15 @@
 <body>
 
 <h1>
-  Snowball backtest V10 <span class="path">&mdash; snowball/backtest/v10/calc_btc.csv &mdash; SMC BOS/CHoCH (smc.txt), 50% of bank as margin @ 2x/5x/10x (ADX + Action Zone scaled) on small green CHoCH, exit on small red CHoCH or liquidation, no compound within a cycle</span>
+  Snowball backtest
   <span class="setup-hover" id="setupHover" tabindex="0">
     <span class="setup-icon">&#9432;</span>
     <div class="setup-tooltip" id="setupTooltip">Loading setup&hellip;</div>
   </span>
-  <a class="plan-link" href="plan.html">View Plan</a>
+  <div class="nav-group">
+    <a class="plan-link" href="multi.html">Multi Portfolio</a>
+    <a class="plan-link" href="plan.html">View Plan</a>
+  </div>
 </h1>
 
 <div id="loader">

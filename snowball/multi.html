@@ -1,0 +1,694 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Snowball Multi Portfolio</title>
+<style>
+  :root {
+    --bg: #0f1117;
+    --panel: #171a23;
+    --border: #2a2e3a;
+    --text: #e6e8ef;
+    --muted: #8b90a0;
+    --pos: #4ade80;
+    --neg: #f87171;
+    --entry: #22c55e;
+    --exit: #38bdf8;
+    --liquidation: #ff4d4d;
+    --cash-fill: #94a3b8;
+    --btc-fill: #f7931a;
+    --eth-fill: #c084fc;
+    --bnb-fill: #fbbf24;
+    --sol-fill: #2dd4bf;
+    --xrp-fill: #f472b6;
+    --font-mono: ui-monospace,"SF Mono","Cascadia Mono","JetBrains Mono",Consolas,"Liberation Mono",monospace;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;
+    font-size: 14px;
+  }
+  h1 {
+    font-size: 16px;
+    font-weight: 600;
+    margin: 0;
+    padding: 14px 18px;
+    border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; gap: 10px;
+  }
+  h1 .path { font-family: var(--font-mono); color: var(--muted); font-weight: 400; }
+
+  #loader { color: var(--muted); font-size: 13px; padding: 14px 18px; }
+  #loader button {
+    margin-top: .75rem; background: var(--text); color: var(--bg); border: none; border-radius: 6px;
+    padding: .5rem 1rem; font-size: .85rem; font-weight: 600; cursor: pointer;
+  }
+  #file-input { display: none; }
+
+  #app { display: none; }
+
+  .legend {
+    display: flex; gap: 18px; flex-wrap: wrap; padding: 10px 18px;
+    font-size: 12px; color: var(--muted); border-bottom: 1px solid var(--border);
+  }
+  .legend span { display: inline-flex; align-items: center; gap: 6px; }
+  .swatch { width: 10px; height: 10px; border-radius: 2px; display: inline-block; }
+
+  .controls {
+    display: flex; gap: 20px; flex-wrap: wrap; padding: 12px 18px;
+    border-bottom: 1px solid var(--border); background: var(--panel);
+  }
+  .field { display: flex; flex-direction: column; gap: 4px; }
+  .field label {
+    font-size: 10.5px; color: var(--muted); text-transform: uppercase; letter-spacing: .04em;
+  }
+  .field select {
+    background: var(--bg); color: var(--text); border: 1px solid var(--border); border-radius: 6px;
+    padding: 5px 8px; font-size: 12.5px; min-width: 220px;
+  }
+
+  .nav-group { display: flex; gap: 10px; margin-left: auto; }
+  .nav-link {
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--text);
+    text-decoration: none;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 6px 12px;
+  }
+  .nav-link:hover { background: #1f2330; }
+
+  .readout {
+    display: flex; flex-direction: column; gap: 3px;
+    padding: 6px 18px; font-family: var(--font-mono); font-size: 12px; color: var(--muted);
+    border-bottom: 1px solid var(--border); background: var(--panel); min-height: 52px;
+  }
+  .readout-line { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .readout b { color: var(--text); font-weight: 600; }
+  .readout .action { color: #ffb347; }
+
+  .chart-row { display: flex; border-bottom: 1px solid var(--border); background: #0b0d13; }
+  .axis-col { flex: 0 0 auto; display: flex; flex-direction: column; border-left: 1px solid var(--border); }
+  .chart-wrap { overflow-x: auto; overflow-y: hidden; flex: 1 1 auto; position: relative; }
+  .chart-inner { display: block; }
+  .panel { position: relative; }
+  .chart-inner .panel + .panel,
+  .axis-col .panel + .panel { border-top: 2px solid rgba(255,255,255,0.16); }
+  canvas { display: block; }
+  .chart-inner canvas { cursor: crosshair; }
+  .overlay { position: absolute; top: 0; left: 0; pointer-events: none; }
+  .corner-spacer { flex: 0 0 auto; }
+
+  .summary { padding: 18px; }
+  .stat-row { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 18px; }
+  .stat-card {
+    background: var(--panel); border: 1px solid var(--border); border-radius: 8px;
+    padding: 10px 16px; min-width: 130px;
+  }
+  .stat-card .label { font-size: 11px; color: var(--muted); text-transform: uppercase; }
+  .stat-card .value { font-size: 18px; font-weight: 600; margin-top: 2px; }
+
+  .table-scroll { overflow: auto; border: 1px solid var(--border); border-radius: 6px; max-height: 70vh; }
+  table {
+    border-collapse: collapse; font-family: var(--font-mono); font-size: .76rem;
+    font-variant-numeric: tabular-nums; white-space: nowrap;
+  }
+  th, td { padding: .35rem .55rem; border-bottom: 1px solid var(--border); border-right: 1px solid var(--border); text-align: left; }
+  td.num, th.num { text-align: right; }
+  td.pos { color: var(--pos); }
+  td.neg { color: var(--neg); }
+  th {
+    position: sticky; top: 0; background: var(--panel); font-weight: 600;
+    font-size: .68rem; text-transform: uppercase; letter-spacing: .04em; color: var(--muted);
+  }
+  tbody tr:hover { background: var(--panel); }
+
+  /* frozen columns: date, total */
+  th:nth-child(1), td:nth-child(1), th:nth-child(2), td:nth-child(2) {
+    position: sticky; z-index: 1; background: var(--bg);
+  }
+  th:nth-child(1), th:nth-child(2) { z-index: 3; background: var(--panel); }
+  td:nth-child(1), td:nth-child(2) { z-index: 2; }
+  th:nth-child(1), td:nth-child(1) { left: 0; }
+  th:nth-child(2), td:nth-child(2) { left: var(--col1-w, 90px); box-shadow: 2px 0 0 var(--border); }
+  tbody tr:hover td:nth-child(1), tbody tr:hover td:nth-child(2) { background: var(--panel); }
+</style>
+</head>
+<body>
+
+<h1>
+  Snowball Multi Portfolio
+  <div class="nav-group">
+    <a class="nav-link" href="index.html">&larr; Single Asset</a>
+    <a class="nav-link" href="plan.html">View Plan</a>
+  </div>
+</h1>
+
+<div id="loader">
+  <p>Loading calc_multi_b.csv&hellip;</p>
+  <div id="loader-fallback" style="display:none;">
+    <p>Automatic fetch didn't work (this happens when the page is opened directly as a file, not through a server). Pick the file instead, or drag &amp; drop it anywhere on this page.</p>
+    <button onclick="document.getElementById('file-input').click()">Choose calc_multi_b.csv</button>
+    <input type="file" id="file-input" accept=".csv" />
+  </div>
+</div>
+
+<div id="app">
+  <div class="summary">
+    <div class="stat-row" id="statRow"></div>
+  </div>
+
+  <div class="controls">
+    <div class="field">
+      <label>Scenario</label>
+      <select id="scenarioSel"></select>
+    </div>
+  </div>
+
+  <div class="legend">
+    Total (stacked area, linear) &mdash; ONE shared bank across all 5 assets, isolated positions :
+    <span><span class="swatch" style="background:var(--cash-fill)"></span>Cash</span>
+    <span><span class="swatch" style="background:var(--btc-fill)"></span>BTC margin (20% sizing)</span>
+    <span><span class="swatch" style="background:var(--eth-fill)"></span>ETH margin (10%)</span>
+    <span><span class="swatch" style="background:var(--bnb-fill)"></span>BNB margin (10%)</span>
+    <span><span class="swatch" style="background:var(--sol-fill)"></span>SOL margin (10%)</span>
+    <span><span class="swatch" style="background:var(--xrp-fill)"></span>XRP margin (10%)</span>
+  </div>
+  <div class="legend">
+    Verticle Line (combined across all 5 assets) :
+    <span><span class="swatch" style="background:var(--entry)"></span>Entry (pct of portfolio total as margin, small green CHoCH)</span>
+    <span><span class="swatch" style="background:var(--exit)"></span>Exit (voluntary, small red CHoCH)</span>
+    <span><span class="swatch" style="background:var(--liquidation)"></span>Liquidation (forced, margin wiped)</span>
+  </div>
+  <div class="legend">
+    Total (zoomed, linear, capped at $20,000) &mdash; same stack as above, for reading the early/low-total history that the main panel's much larger scale flattens out.
+  </div>
+
+  <div id="readoutTop" class="readout">Hover the chart to inspect a day.</div>
+
+  <div class="chart-row">
+    <div class="chart-wrap" id="chartWrap">
+      <div class="chart-inner" id="chartInner">
+        <div class="panel">
+          <canvas id="totalCanvas"></canvas>
+          <canvas id="totalOverlay" class="overlay"></canvas>
+        </div>
+        <div class="panel">
+          <canvas id="totalZoomCanvas"></canvas>
+          <canvas id="totalZoomOverlay" class="overlay"></canvas>
+        </div>
+        <div class="panel">
+          <canvas id="dateAxis"></canvas>
+          <canvas id="dateAxisOverlay" class="overlay"></canvas>
+        </div>
+      </div>
+    </div>
+    <div class="axis-col">
+      <div class="panel"><canvas id="totalAxis"></canvas><canvas id="totalAxisOverlay" class="overlay"></canvas></div>
+      <div class="panel"><canvas id="totalZoomAxis"></canvas><canvas id="totalZoomAxisOverlay" class="overlay"></canvas></div>
+      <div class="corner-spacer" id="cornerSpacer"></div>
+    </div>
+  </div>
+
+  <div id="readoutBottom" class="readout">Hover the chart to inspect a day.</div>
+
+  <div class="summary">
+    <div class="table-scroll">
+      <table id="data-table"></table>
+    </div>
+  </div>
+</div>
+
+<script>
+// ---------------------------------------------------------------------------
+// Layout constants -- ONE tall linear-scale Total panel (no candle/ADX/
+// Action-Zone panels: those are single-asset technicals, not applicable to
+// a combined portfolio -- see snowball/index.html for the single-asset view).
+// ---------------------------------------------------------------------------
+const PX_PER_BAR = 8;
+const AXIS_WIDTH = 64;
+const TOTAL_HEIGHT = 620;
+// Second panel, fixed linear scale capped at $20,000 -- the main panel's
+// scale runs to the portfolio's all-time high (often 100s of thousands),
+// which flattens out the early history where total stays under $20,000.
+// This panel re-draws the identical stack at a scale sized for that range.
+const ZOOM_MAX = 15000;
+const ZOOM_HEIGHT = 320;
+const DATE_AXIS_HEIGHT = 24;
+const PANEL_HEIGHTS = [TOTAL_HEIGHT, ZOOM_HEIGHT];
+
+const SCENARIO_KEYS = [
+  { key: "a", label: "A (from mid-2022)", file: "calc_multi_a.csv" },
+  { key: "b", label: "B (from early 2023)", file: "calc_multi_b.csv" },
+];
+
+// Bottom-to-top stacking order in the Total panel (cash sits below all of
+// them); `pct` is this asset's share of the current portfolio total drawn
+// as margin on its own entry (see snowball/generate_calc_multi.py).
+const MULTI_ASSETS_META = [
+  { key: "btc", label: "BTC", pct: 20, fill: "rgba(247,147,26,0.55)" },
+  { key: "eth", label: "ETH", pct: 10, fill: "rgba(192,132,252,0.55)" },
+  { key: "bnb", label: "BNB", pct: 10, fill: "rgba(251,191,36,0.55)" },
+  { key: "sol", label: "SOL", pct: 10, fill: "rgba(45,212,191,0.55)" },
+  { key: "xrp", label: "XRP", pct: 10, fill: "rgba(244,114,182,0.55)" },
+];
+const CASH_FILL = "rgba(148,163,184,0.55)";
+
+const CATEGORIES = [
+  { key: "liquidation", color: "var(--liquidation)", test: a => a.includes("LIQUIDATION EVENT") },
+  { key: "exit",        color: "var(--exit)",        test: a => a.includes("EXIT @") },
+  { key: "entry",        color: "var(--entry)",       test: a => a.includes("ENTRY @") },
+];
+function classify(action){
+  if(!action) return [];
+  return CATEGORIES.filter(c => c.test(action));
+}
+
+// ---------------------------------------------------------------------------
+// CSV parsing (quote-aware -- action text contains commas)
+// ---------------------------------------------------------------------------
+function parseCSV(text){
+  const rows = [];
+  let row = [], field = "", inQuotes = false;
+  for(let i=0;i<text.length;i++){
+    const c = text[i], next = text[i+1];
+    if(inQuotes){
+      if(c === '"' && next === '"'){ field += '"'; i++; }
+      else if(c === '"'){ inQuotes = false; }
+      else { field += c; }
+    } else {
+      if(c === '"'){ inQuotes = true; }
+      else if(c === ','){ row.push(field); field = ""; }
+      else if(c === '\r'){ /* skip */ }
+      else if(c === '\n'){ row.push(field); rows.push(row); row = []; field = ""; }
+      else { field += c; }
+    }
+  }
+  if(field.length || row.length){ row.push(field); rows.push(row); }
+  if(rows.length && rows[rows.length-1].length === 1 && rows[rows.length-1][0] === "") rows.pop();
+  return rows;
+}
+function col(header, body, name, parser){
+  const idx = header.indexOf(name);
+  if(idx === -1) throw new Error("CSV missing column: " + name);
+  return body.map(r => { const v = r[idx]; if(v === undefined || v === "") return null; return parser ? parser(v) : v; });
+}
+function escapeHTML(s){ return s.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;"); }
+function cssVar(name){ return getComputedStyle(document.documentElement).getPropertyValue(name).trim(); }
+
+// ---------------------------------------------------------------------------
+// Canvas drawing helpers
+// ---------------------------------------------------------------------------
+function drawGrid(ctx, width, height, numH, vStep){
+  ctx.strokeStyle = 'rgba(255,255,255,0.06)';
+  ctx.lineWidth = 1;
+  for(let g=1; g<numH; g++){
+    const y = height * (g/numH);
+    ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(width,y); ctx.stroke();
+  }
+  for(let x=0; x<width; x+=vStep){
+    ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,height); ctx.stroke();
+  }
+}
+function computeLinearScale(values, height, pad=1.05, forcedMin=0){
+  const valid = values.filter(v => v !== null);
+  const yMax = Math.max(...valid) * pad;
+  const yMin = forcedMin;
+  const scale = v => height - ((v - yMin) / (yMax - yMin)) * height;
+  return { scale, yMin, yMax };
+}
+function fillAreaUnderLine(ctx, values, yScale, baseline, fillStyle){
+  ctx.beginPath();
+  let started = false, firstX = PX_PER_BAR/2, lastX = PX_PER_BAR/2;
+  for(let i=0;i<values.length;i++){
+    const v = values[i]; if(v === null) continue;
+    const x = i*PX_PER_BAR + PX_PER_BAR/2, y = yScale(v);
+    if(!started){ ctx.moveTo(x,y); firstX = x; started = true; } else { ctx.lineTo(x,y); }
+    lastX = x;
+  }
+  ctx.lineTo(lastX, baseline); ctx.lineTo(firstX, baseline); ctx.closePath();
+  ctx.fillStyle = fillStyle;
+  ctx.fill();
+}
+// N-band stack, largest cumulative first (grand total) down to smallest
+// last (cash) -- each layer's own fillStyle paints its own band as
+// everything below it gets overwritten by the next, smaller layer painted
+// after it.
+function drawStackedAreaPanel(ctx, height, layers, scaleOverride){
+  const n = layers[0].values.length, width = n*PX_PER_BAR;
+  ctx.clearRect(0,0,width,height);
+  drawGrid(ctx,width,height,6,PX_PER_BAR*30);
+  const { scale, yMin, yMax } = scaleOverride || computeLinearScale(layers[0].values, height, 1.05, 0);
+  const floor = v => v === null ? null : Math.max(v, 0);
+  layers.forEach(layer => {
+    fillAreaUnderLine(ctx, layer.values.map(floor), scale, height, layer.fillStyle);
+  });
+  return { scale, yMin, yMax };
+}
+// Fixed-range variant of computeLinearScale -- used by the zoomed panel,
+// whose top is a constant (ZOOM_MAX) rather than derived from the data.
+function computeLinearScaleFixed(height, yMax, yMin=0){
+  const scale = v => height - ((v - yMin) / (yMax - yMin)) * height;
+  return { scale, yMin, yMax };
+}
+function drawLinearAxis(ctx, height, maxValue, ticks, suffix=""){
+  ctx.clearRect(0,0,AXIS_WIDTH,height);
+  ctx.font = '10px sans-serif'; ctx.fillStyle = 'rgba(230,232,239,0.6)'; ctx.textAlign = 'right';
+  for(let g=0; g<=ticks; g++){
+    const v = maxValue*(g/ticks);
+    const y = height - (g/ticks)*height;
+    ctx.fillText((v >= 1000 ? Math.round(v).toLocaleString() : v.toFixed(0))+suffix, AXIS_WIDTH-6, y+3);
+  }
+  ctx.textAlign = 'left';
+}
+function invLinearScale(y, height, maxValue){ return ((height-y)/height) * maxValue; }
+function drawDateAxis(ctx, dates){
+  const n = dates.length, width = n*PX_PER_BAR;
+  ctx.clearRect(0,0,width,DATE_AXIS_HEIGHT);
+  ctx.fillStyle = 'rgba(230,232,239,0.6)'; ctx.font = '10px sans-serif'; ctx.textAlign = 'left';
+  const step = Math.max(1, Math.round(n/50));
+  for(let i=0;i<n;i+=step){
+    if(!dates[i]) continue;
+    ctx.fillText(dates[i].slice(0,7), i*PX_PER_BAR, 15);
+  }
+}
+// Full-height vertical line across a panel on entry/exit/liquidation days.
+function drawMarkers(ctx, dayCats, height){
+  for(let i=0;i<dayCats.length;i++){
+    const cats = dayCats[i];
+    if(!cats.length) continue;
+    const xCenter = i*PX_PER_BAR + PX_PER_BAR/2;
+    cats.forEach((cat, k) => {
+      const offset = (k - (cats.length-1)/2) * 2;
+      ctx.fillStyle = cssVar(cat.color.replace('var(','').replace(')',''));
+      ctx.fillRect(xCenter+offset-0.75, 0, 1.5, height);
+    });
+  }
+}
+function drawCrosshairLabelBox(ctx, width, height, boxW, boxH, left, top, text){
+  ctx.clearRect(0,0,width,height);
+  ctx.fillStyle = '#1c202c';
+  ctx.fillRect(left,top,boxW,boxH);
+  ctx.strokeStyle = 'rgba(255,255,255,0.35)';
+  ctx.strokeRect(left+0.5, top+0.5, boxW-1, boxH-1);
+  ctx.fillStyle = '#e6e8ef'; ctx.font = '10px sans-serif'; ctx.textAlign = 'center';
+  ctx.fillText(text, left+boxW/2, top+boxH/2+3);
+  ctx.textAlign = 'left';
+}
+function drawPriceCrosshairLabel(ctx, height, y, text){
+  const boxH = 18, top = Math.min(Math.max(y-boxH/2,0), height-boxH);
+  drawCrosshairLabelBox(ctx, AXIS_WIDTH, height, AXIS_WIDTH, boxH, 0, top, text);
+}
+function drawDateCrosshairLabel(ctx, width, x, text){
+  const boxW = 68, left = Math.min(Math.max(x-boxW/2,0), width-boxW);
+  drawCrosshairLabelBox(ctx, width, DATE_AXIS_HEIGHT, boxW, DATE_AXIS_HEIGHT-4, left, 2, text);
+}
+function fmtPriceLabel(v){ return v >= 1000 ? v.toFixed(0) : v.toFixed(2); }
+
+// ---------------------------------------------------------------------------
+// Table + stats
+// ---------------------------------------------------------------------------
+function fmtMoney(v){ return v==null || !isFinite(v) ? "" : v.toFixed(2); }
+function fmtPct(v){ return v==null || !isFinite(v) ? "" : (v>=0?"+":"")+v.toFixed(2)+"%"; }
+function fmtRatio(v){ return v==null || !isFinite(v) ? "" : v.toFixed(2)+"x"; }
+function signCls(v){ return v==null || !isFinite(v) || v===0 ? "" : (v>0 ? " pos" : " neg"); }
+
+function renderTable(state){
+  const table = document.getElementById("data-table");
+  const cols = [
+    ["date",  "text",  i => escapeHTML(String(state.dates[i]))],
+    ["cash",  "money", i => fmtMoney(state.cash[i])],
+    ["total", "money", i => fmtMoney(state.total[i])],
+    ["pnl",   "money", i => fmtMoney(state.pnl[i]), i => state.pnl[i]],
+    ["%pnl",  "pct",   i => fmtPct(state.pctPnl[i]), i => state.pctPnl[i]],
+  ];
+  MULTI_ASSETS_META.forEach(meta => {
+    const a = state.assets[meta.key], k = meta.key;
+    cols.push(
+      [`${k}_close`,      "money", i => fmtMoney(a.close[i])],
+      [`${k}_leverage`,   "ratio", i => fmtRatio(a.leverage[i])],
+      [`${k}_size`,       "num",   i => a.positionSize[i]==null ? "" : a.positionSize[i].toFixed(6)],
+      [`${k}_margin`,     "money", i => fmtMoney(a.margin[i])],
+      [`${k}_liquidate`,  "money", i => fmtMoney(a.liquidatePrice[i])],
+      [`${k}_action`,     "text",  i => escapeHTML(a.action[i])],
+    );
+  });
+
+  let html = "<thead><tr>" + cols.map(([label,type]) =>
+    "<th"+(type!=="text"?' class="num"':'')+">"+escapeHTML(label)+"</th>"
+  ).join("") + "</tr></thead>";
+
+  const rows = [];
+  for(let i=0;i<state.n;i++){
+    const cells = cols.map(([label,type,fmt,signVal]) => {
+      const display = fmt(i);
+      const cls = (type!=="text" ? "num" : "") + (signVal ? signCls(signVal(i)) : "");
+      return `<td${cls?` class="${cls}"`:""}>${display}</td>`;
+    });
+    rows.push("<tr>" + cells.join("") + "</tr>");
+  }
+  html += "<tbody>" + rows.join("") + "</tbody>";
+  table.innerHTML = html;
+
+  requestAnimationFrame(() => {
+    const firstCell = table.querySelector("tbody td:first-child") || table.querySelector("th:first-child");
+    if(firstCell) table.style.setProperty("--col1-w", firstCell.getBoundingClientRect().width + "px");
+  });
+}
+
+function renderStats(state){
+  const totals = state.total.map(v => v === null ? 0 : v);
+  let peak = -Infinity, maxDD = 0;
+  totals.forEach(v => { peak = Math.max(peak, v); maxDD = Math.min(maxDD, v-peak); });
+  const count = (arr, test) => arr.filter(a => a && test(a)).length;
+  let entries = 0, exits = 0, liquidations = 0;
+  const openNow = [];
+  MULTI_ASSETS_META.forEach(meta => {
+    const a = state.assets[meta.key];
+    entries += count(a.action, s => s.includes("ENTRY @"));
+    exits += count(a.action, s => s.includes("EXIT @"));
+    liquidations += count(a.action, s => s.includes("LIQUIDATION EVENT"));
+    if(a.positionSize[state.n-1] != null) openNow.push(meta.label);
+  });
+  const cards = [
+    ["Starting bank", "$2,000.00"],
+    ["Final Total", "$" + totals[totals.length-1].toLocaleString(undefined,{maximumFractionDigits:2})],
+    ["Cash", "$" + (state.cash[state.n-1] || 0).toLocaleString(undefined,{maximumFractionDigits:2})],
+    ["Max Drawdown", "$" + maxDD.toLocaleString(undefined,{maximumFractionDigits:2})],
+    ["Entries", entries],
+    ["Exits", exits],
+    ["Liquidations", liquidations],
+    ["Open now", openNow.length ? openNow.join(", ") : "None"],
+  ];
+  document.getElementById("statRow").innerHTML = cards.map(([label,value]) => `
+    <div class="stat-card"><div class="label">${label}</div><div class="value">${value}</div></div>
+  `).join("");
+}
+
+// ---------------------------------------------------------------------------
+// Main
+// ---------------------------------------------------------------------------
+function parseState(csvText){
+  const parsed = parseCSV(csvText);
+  const header = parsed[0], body = parsed.slice(1);
+
+  const state = {
+    dates: col(header, body, "date"),
+    cash: col(header, body, "cash", parseFloat),
+    total: col(header, body, "total", parseFloat),
+    pnl: col(header, body, "pnl", parseFloat),
+    pctPnl: col(header, body, "pct_pnl", parseFloat),
+  };
+  state.n = state.dates.length;
+
+  state.assets = {};
+  MULTI_ASSETS_META.forEach(meta => {
+    const k = meta.key;
+    const action = col(header, body, `${k}_action`).map(v => v || "");
+    state.assets[k] = {
+      key: k, label: meta.label,
+      close: col(header, body, `${k}_close`, parseFloat),
+      leverage: col(header, body, `${k}_leverage`, parseFloat),
+      positionSize: col(header, body, `${k}_position_size`, parseFloat),
+      margin: col(header, body, `${k}_margin`, parseFloat),
+      liquidatePrice: col(header, body, `${k}_liquidate_price`, parseFloat),
+      pctLiquidate: col(header, body, `${k}_pct_liquidate`, parseFloat),
+      action,
+      dayCats: action.map(a => classify(a)),
+    };
+  });
+  return state;
+}
+
+let CHART_HANDLE = null;
+
+function render(state){
+  document.getElementById("loader").style.display = "none";
+  document.getElementById("app").style.display = "block";
+
+  const width = state.n * PX_PER_BAR;
+  const els = {};
+  ["totalCanvas","totalOverlay","totalZoomCanvas","totalZoomOverlay",
+   "dateAxis","dateAxisOverlay"].forEach(id => els[id] = document.getElementById(id));
+  const heights = {
+    totalCanvas: TOTAL_HEIGHT, totalOverlay: TOTAL_HEIGHT,
+    totalZoomCanvas: ZOOM_HEIGHT, totalZoomOverlay: ZOOM_HEIGHT,
+    dateAxis: DATE_AXIS_HEIGHT, dateAxisOverlay: DATE_AXIS_HEIGHT,
+  };
+  Object.keys(els).forEach(id => { els[id].width = width; els[id].height = heights[id]; });
+
+  const totalAxis = document.getElementById("totalAxis"), totalAxisOverlay = document.getElementById("totalAxisOverlay");
+  const totalZoomAxis = document.getElementById("totalZoomAxis"), totalZoomAxisOverlay = document.getElementById("totalZoomAxisOverlay");
+  [totalAxis, totalAxisOverlay].forEach(c => { c.width = AXIS_WIDTH; c.height = TOTAL_HEIGHT; });
+  [totalZoomAxis, totalZoomAxisOverlay].forEach(c => { c.width = AXIS_WIDTH; c.height = ZOOM_HEIGHT; });
+  document.getElementById("cornerSpacer").style.height = DATE_AXIS_HEIGHT + "px";
+
+  const totalCtx = els.totalCanvas.getContext("2d");
+  const totalZoomCtx = els.totalZoomCanvas.getContext("2d");
+
+  // Cumulative stack bottom-up: cash, then each asset's margin added on top
+  // in MULTI_ASSETS_META order -- painted largest-cumulative-first so each
+  // smaller cumulative overwrites and leaves its own band visible.
+  const cashF = state.cash.map(v => v ?? 0);
+  let cum = cashF.slice();
+  const cumByAsset = [];
+  MULTI_ASSETS_META.forEach(meta => {
+    const marginArr = state.assets[meta.key].margin;
+    cum = cum.map((c,i) => c + (marginArr[i] ?? 0));
+    cumByAsset.push({ key: meta.key, fill: meta.fill, values: cum.slice() });
+  });
+  const layers = [];
+  for(let idx = cumByAsset.length-1; idx >= 0; idx--){
+    layers.push({ values: cumByAsset[idx].values, fillStyle: cumByAsset[idx].fill });
+  }
+  layers.push({ values: cashF, fillStyle: CASH_FILL });
+  const totalScale = drawStackedAreaPanel(totalCtx, TOTAL_HEIGHT, layers);
+  const zoomScale = drawStackedAreaPanel(totalZoomCtx, ZOOM_HEIGHT, layers, computeLinearScaleFixed(ZOOM_HEIGHT, ZOOM_MAX));
+
+  // Combined entry/exit/liquidation markers across all 5 assets.
+  const mergedCats = Array.from({length: state.n}, () => []);
+  MULTI_ASSETS_META.forEach(meta => {
+    state.assets[meta.key].dayCats.forEach((cats,i) => { if(cats.length) mergedCats[i] = mergedCats[i].concat(cats); });
+  });
+  drawMarkers(totalCtx, mergedCats, TOTAL_HEIGHT);
+  drawMarkers(totalZoomCtx, mergedCats, ZOOM_HEIGHT);
+
+  drawDateAxis(els.dateAxis.getContext("2d"), state.dates);
+  drawLinearAxis(totalAxis.getContext("2d"), TOTAL_HEIGHT, totalScale.yMax, 6);
+  drawLinearAxis(totalZoomAxis.getContext("2d"), ZOOM_HEIGHT, zoomScale.yMax, 4);
+
+  const chartInner = document.getElementById("chartInner");
+  const overlays = [els.totalOverlay, els.totalZoomOverlay];
+  const scales = [totalScale, zoomScale];
+  const axisOverlays = [totalAxisOverlay, totalZoomAxisOverlay];
+  const readoutTop = document.getElementById("readoutTop");
+  const readoutBottom = document.getElementById("readoutBottom");
+
+  function onMouseMove(e){
+    const rect = chartInner.getBoundingClientRect();
+    const x = e.clientX - rect.left, y = e.clientY - rect.top;
+    const i = Math.min(state.n-1, Math.max(0, Math.floor(x/PX_PER_BAR)));
+    if(state.total[i] === null) return;
+    const xCenter = i*PX_PER_BAR + PX_PER_BAR/2;
+
+    let panelIdx = -1, localY = 0, acc = 0;
+    for(let p=0;p<PANEL_HEIGHTS.length;p++){
+      if(y < acc+PANEL_HEIGHTS[p]){ panelIdx = p; localY = y-acc; break; }
+      acc += PANEL_HEIGHTS[p];
+    }
+
+    overlays.forEach((canvas, idx) => {
+      const ctx = canvas.getContext("2d"), h = PANEL_HEIGHTS[idx];
+      ctx.clearRect(0,0,width,h);
+      ctx.strokeStyle = 'rgba(255,255,255,0.5)'; ctx.setLineDash([2,3]);
+      ctx.beginPath(); ctx.moveTo(xCenter,0); ctx.lineTo(xCenter,h); ctx.stroke();
+      if(idx === panelIdx){ ctx.beginPath(); ctx.moveTo(0,localY); ctx.lineTo(width,localY); ctx.stroke(); }
+      ctx.setLineDash([]);
+    });
+
+    axisOverlays.forEach((axisCanvas, idx) => {
+      const ctx = axisCanvas.getContext("2d"), h = PANEL_HEIGHTS[idx];
+      ctx.clearRect(0,0,AXIS_WIDTH,h);
+      if(idx === panelIdx){
+        drawPriceCrosshairLabel(ctx, h, localY, fmtPriceLabel(invLinearScale(localY, h, scales[idx].yMax)));
+      }
+    });
+    drawDateCrosshairLabel(els.dateAxisOverlay.getContext("2d"), width, xCenter, state.dates[i]);
+
+    let dataHtml = `<b>${state.dates[i]}</b> &nbsp; cash <b>$${state.cash[i].toFixed(2)}</b> &nbsp; total <b>$${state.total[i].toFixed(2)}</b>`;
+    if(state.pctPnl[i] !== null) dataHtml += ` &nbsp; %pnl <b>${state.pctPnl[i].toFixed(2)}%</b>`;
+    const actionBits = [];
+    MULTI_ASSETS_META.forEach(meta => {
+      const a = state.assets[meta.key];
+      if(a.close[i] !== null) dataHtml += ` &nbsp; ${meta.label} <b>${a.close[i].toFixed(2)}</b>`;
+      if(a.action[i]) actionBits.push(`${meta.label}: ${a.action[i]}`);
+    });
+    const actionHtml = actionBits.length ? `<span class="action">${escapeHTML(actionBits.join(" | "))}</span>` : "&nbsp;";
+
+    const html = `<div class="readout-line">${dataHtml}</div><div class="readout-line">${actionHtml}</div>`;
+    readoutTop.innerHTML = html;
+    readoutBottom.innerHTML = html;
+  }
+  function onMouseLeave(){
+    overlays.forEach((c,idx) => c.getContext("2d").clearRect(0,0,width,PANEL_HEIGHTS[idx]));
+    axisOverlays.forEach((c,idx) => c.getContext("2d").clearRect(0,0,AXIS_WIDTH,PANEL_HEIGHTS[idx]));
+    els.dateAxisOverlay.getContext("2d").clearRect(0,0,width,DATE_AXIS_HEIGHT);
+  }
+
+  if(CHART_HANDLE){
+    chartInner.removeEventListener("mousemove", CHART_HANDLE.onMouseMove);
+    chartInner.removeEventListener("mouseleave", CHART_HANDLE.onMouseLeave);
+  }
+  chartInner.addEventListener("mousemove", onMouseMove);
+  chartInner.addEventListener("mouseleave", onMouseLeave);
+  CHART_HANDLE = { onMouseMove, onMouseLeave };
+
+  renderStats(state);
+  renderTable(state);
+}
+
+let APP_STATE = null;
+
+function boot(csvText){
+  APP_STATE = parseState(csvText);
+  render(APP_STATE);
+}
+
+function fetchScenario(file){
+  document.getElementById("loader").style.display = "block";
+  document.getElementById("app").style.display = "none";
+  fetch(file)
+    .then(r => { if(!r.ok) throw new Error("HTTP "+r.status); return r.text(); })
+    .then(boot)
+    .catch(() => { document.getElementById("loader-fallback").style.display = "block"; });
+}
+
+function tryFetch(){
+  const sel = document.getElementById("scenarioSel");
+  SCENARIO_KEYS.forEach(meta => sel.add(new Option(meta.label, meta.key)));
+  sel.value = "b";
+  sel.addEventListener("change", () => {
+    fetchScenario(SCENARIO_KEYS.find(m => m.key === sel.value).file);
+  });
+  fetchScenario(SCENARIO_KEYS.find(m => m.key === sel.value).file);
+}
+document.getElementById("file-input").addEventListener("change", (e)=>{
+  const file = e.target.files[0]; if(!file) return;
+  const reader = new FileReader(); reader.onload = (ev) => boot(ev.target.result); reader.readAsText(file);
+});
+document.body.addEventListener("dragover", e=>e.preventDefault());
+document.body.addEventListener("drop", (e)=>{
+  e.preventDefault();
+  const file = e.dataTransfer.files[0]; if(!file) return;
+  const reader = new FileReader(); reader.onload = (ev) => boot(ev.target.result); reader.readAsText(file);
+});
+
+tryFetch();
+</script>
+</body>
+</html>
